@@ -85,12 +85,13 @@ Estos seis principios son ley. Si una feature pide violarlos, **detén la implem
 
 Stack zero-cost para el MVP. Cada capa tiene una justificación.
 
-| Capa | Tecnología | Versión | Notas |
+| Capa | Tecnología | Versión instalada | Notas |
 |---|---|---|---|
-| Framework | **Next.js** | `15.x` con App Router | TypeScript estricto, Server Components por defecto |
-| Lenguaje | **TypeScript** | `5.x` strict | `"strict": true`, sin `any` salvo justificado en comentario |
-| Estilos | **Tailwind CSS** | `3.x` | mobile-first, breakpoints `sm md lg` |
-| UI Kit | **shadcn/ui** | latest | tema **neutral** hasta que llegue la paleta médica |
+| Framework | **Next.js** | `15.5.x` con App Router + Turbopack | TypeScript estricto, Server Components por defecto |
+| Runtime | **React** | `19.1.x` | Server Components, `use()` hook, Actions API |
+| Lenguaje | **TypeScript** | `5.x` strict | `"strict": true`, `noUncheckedIndexedAccess`, sin `any` salvo justificado |
+| Estilos | **Tailwind CSS** | `4.x` (CSS-based config) | config en `app/globals.css` via `@theme`, no `tailwind.config.ts` |
+| UI Kit | **shadcn/ui** | latest (compat Tailwind v4) | tema **neutral** hasta que llegue la paleta médica |
 | Hosting frontend | **Vercel** | free tier | deploy automático desde `main` |
 | BaaS | **Supabase** | latest | Postgres + Auth + Storage + Edge Functions + **pgvector** |
 | Auth SSR | `@supabase/ssr` | latest | cookies-based, no localStorage |
@@ -154,8 +155,9 @@ derma-intel-pro/
 │   ├── icon-512.png
 │   └── apple-touch-icon.png
 ├── middleware.ts               # auth gate
-├── next.config.mjs             # wrap con next-pwa
-├── tailwind.config.ts
+├── next.config.ts              # wrap con next-pwa
+├── postcss.config.mjs          # @tailwindcss/postcss
+├── eslint.config.mjs           # flat config Next 15
 ├── tsconfig.json               # strict
 ├── .env.local                  # local, gitignored
 ├── .env.example                # template, versionado
