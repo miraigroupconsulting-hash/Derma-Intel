@@ -47,7 +47,7 @@ export async function completeOnboarding(
     };
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("medicos")
     .update({
       nombre: parsed.data.nombre,
@@ -58,11 +58,22 @@ export async function completeOnboarding(
       telefono: parsed.data.telefono || null,
       onboarding_completed: true,
     })
-    .eq("id", user.id);
+    .eq("id", user.id)
+    .select("id");
 
   if (error) {
     return {
       error: "No pudimos guardar tu perfil. Intenta de nuevo.",
+    };
+  }
+
+  // Defensive: if no row was updated, the médico profile is missing in
+  // the DB (RLS would also produce this if the trigger never fired).
+  // Fail loudly instead of silently looping the middleware → /onboarding.
+  if (!data || data.length === 0) {
+    return {
+      error:
+        "Tu perfil profesional no existe en la base de datos. Contacta a soporte.",
     };
   }
 
