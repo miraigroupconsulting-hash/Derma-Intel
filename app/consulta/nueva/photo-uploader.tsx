@@ -47,7 +47,7 @@ export function PhotoUploader({
   pacienteFullName: _pacienteFullName,
   photos,
   onChange,
-  maxPhotos = 3,
+  maxPhotos = 5,
 }: {
   // pacienteFullName is currently unused in this component but kept in
   // the public API for future captions (e.g. watermark on download).

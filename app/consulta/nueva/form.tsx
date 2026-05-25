@@ -551,7 +551,7 @@ export function NuevaConsultaForm({
           pacienteFullName={pacienteFullName}
           photos={photos}
           onChange={setPhotos}
-          maxPhotos={3}
+          maxPhotos={5}
         />
       </section>
 

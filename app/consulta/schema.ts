@@ -101,7 +101,7 @@ export const analizarCasoRequestSchema = z.object({
         zona_anatomica: z.string().optional().nullable(),
       }),
     )
-    .max(3),
+    .max(5),
 });
 
 export type AnalizarCasoRequest = z.infer<typeof analizarCasoRequestSchema>;
@@ -207,7 +207,7 @@ export const saveConsultaSchema = z.object({
         zona_anatomica: z.string().optional().nullable(),
       }),
     )
-    .max(3),
+    .max(5),
 });
 
 export type SaveConsultaInput = z.infer<typeof saveConsultaSchema>;
