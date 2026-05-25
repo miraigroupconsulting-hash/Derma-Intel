@@ -9,6 +9,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  analizarCasoResponseSchema,
+  type AnalizarCasoResponse,
+} from "../schema";
+import { AnalisisIaPanel } from "../nueva/analisis-ia-panel";
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
 
@@ -80,6 +85,7 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
   }
 
   const transcripcionRaw = extractTranscripcion(consulta.notas_ia);
+  const analisisIa = extractAnalisisIa(consulta.notas_ia);
   const fechaConsulta = new Date(consulta.fecha);
   const fechaTexto = fechaConsulta.toLocaleString("es-VE", {
     dateStyle: "long",
@@ -163,6 +169,8 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
           </Card>
         )}
 
+        {analisisIa && <AnalisisIaPanel data={analisisIa} />}
+
         {transcripcionRaw && (
           <Card>
             <CardHeader>
@@ -227,4 +235,12 @@ function extractTranscripcion(notasIa: unknown): string | null {
   if (!notasIa || typeof notasIa !== "object") return null;
   const t = (notasIa as { transcripcion_raw?: unknown }).transcripcion_raw;
   return typeof t === "string" && t.trim() ? t : null;
+}
+
+function extractAnalisisIa(notasIa: unknown): AnalizarCasoResponse | null {
+  if (!notasIa || typeof notasIa !== "object") return null;
+  const a = (notasIa as { analisis_ia?: unknown }).analisis_ia;
+  if (!a || typeof a !== "object") return null;
+  const parsed = analizarCasoResponseSchema.safeParse(a);
+  return parsed.success ? parsed.data : null;
 }

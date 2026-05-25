@@ -5,6 +5,9 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { saveConsultaSchema, type SaveConsultaInput } from "./schema";
+import type { Database } from "@/types/database";
+
+type ConsultaJson = Database["public"]["Tables"]["consultas"]["Insert"]["notas_ia"];
 
 export interface ConsultaActionState {
   error: string | null;
@@ -70,9 +73,10 @@ export async function saveConsulta(
     examen_fisico: data.objetivo ?? null,
     diagnostico_diferencial: data.analisis ?? null,
     plan_terapeutico: data.plan ?? null,
-    notas_ia: data.transcripcion_raw
-      ? { transcripcion_raw: data.transcripcion_raw }
-      : null,
+    notas_ia: buildNotasIa({
+      transcripcion_raw: data.transcripcion_raw,
+      analisis_ia: data.analisis_ia,
+    }),
     estado: "completada",
   });
 
@@ -119,6 +123,27 @@ export async function saveConsulta(
   revalidatePath("/dashboard");
   revalidatePath(`/pacientes/${data.paciente_id}`);
   return { error: null, consultaId };
+}
+
+/**
+ * Compose the notas_ia JSON column from the parts we actually have.
+ * Returns null when both transcript and analysis are empty so we don't
+ * write {} into the DB.
+ */
+function buildNotasIa(parts: {
+  transcripcion_raw?: string;
+  analisis_ia?: unknown;
+}): ConsultaJson {
+  const out: Record<string, unknown> = {};
+  if (parts.transcripcion_raw && parts.transcripcion_raw.trim().length > 0) {
+    out.transcripcion_raw = parts.transcripcion_raw;
+  }
+  if (parts.analisis_ia) {
+    out.analisis_ia = parts.analisis_ia;
+  }
+  return Object.keys(out).length > 0
+    ? (out as unknown as ConsultaJson)
+    : null;
 }
 
 /**

@@ -81,6 +81,83 @@ export type EstructurarSoapResponse = z.infer<
   typeof estructurarSoapResponseSchema
 >;
 
+// =====================================================================
+// Caso Clínico — image + context → differential diagnosis + plan
+// =====================================================================
+
+export const analizarCasoRequestSchema = z.object({
+  paciente_id: z.string().uuid(),
+  motivo: z.string().max(200).optional(),
+  // Free-text context the médico provides (anamnesis, examen físico,
+  // etc.) — typically the current SOAP S+O concatenated.
+  contexto: z.string().max(8000).default(""),
+  // Each photo is referenced by its current storage_path inside the
+  // fotos-consultas bucket. The route downloads bytes server-side.
+  fotos: z
+    .array(
+      z.object({
+        storage_path: z.string().min(1),
+        tipo: z.enum(["clinica", "dermatoscopia"]),
+        zona_anatomica: z.string().optional().nullable(),
+      }),
+    )
+    .max(3),
+});
+
+export type AnalizarCasoRequest = z.infer<typeof analizarCasoRequestSchema>;
+
+export const diferencialSchema = z.object({
+  nombre: z.string(),
+  probabilidad: z.enum(["alta", "media", "baja"]),
+  fundamento: z.string(),
+});
+
+export type Diferencial = z.infer<typeof diferencialSchema>;
+
+export const analizarCasoResponseSchema = z.object({
+  lectura_imagen: z.string().default(""),
+  hallazgos_relevantes: z.string().default(""),
+  diferenciales: z.array(diferencialSchema).default([]),
+  plan_diagnostico: z.string().default(""),
+  plan_terapeutico: z.string().default(""),
+  educacion_paciente: z.string().default(""),
+  seguimiento: z.string().default(""),
+  banderas_rojas: z.array(z.string()).default([]),
+  derivacion_sugerida: z.string().default(""),
+  image_quality: z
+    .enum(["adequate", "limited", "insufficient", "none"])
+    .default("none"),
+  // Echoed back so the client can show tokens used / cost.
+  tokens_used: z
+    .object({
+      input: z.number(),
+      output: z.number(),
+      total: z.number(),
+      estimated_cost_usd: z.number(),
+    })
+    .optional(),
+  // Set when something went wrong but we still want the UI to render a
+  // useful fallback.
+  error: z.boolean().default(false),
+  error_message: z.string().optional(),
+});
+
+export type AnalizarCasoResponse = z.infer<typeof analizarCasoResponseSchema>;
+
+export const EMPTY_ANALIZAR: AnalizarCasoResponse = {
+  lectura_imagen: "",
+  hallazgos_relevantes: "",
+  diferenciales: [],
+  plan_diagnostico: "",
+  plan_terapeutico: "",
+  educacion_paciente: "",
+  seguimiento: "",
+  banderas_rojas: [],
+  derivacion_sugerida: "",
+  image_quality: "none",
+  error: false,
+};
+
 /**
  * Input for the save consulta server action. Validates everything that
  * the client sends and that ends up in the DB.
@@ -93,6 +170,33 @@ export const saveConsultaSchema = z.object({
   analisis: z.string().trim().max(8000).optional(),
   plan: z.string().trim().max(8000).optional(),
   transcripcion_raw: z.string().trim().max(20000).optional(),
+  // Optional IA analysis (Caso Clínico mode result) snapshot. Stored
+  // alongside the consulta so it appears when the médico reopens.
+  analisis_ia: z
+    .object({
+      lectura_imagen: z.string().optional(),
+      hallazgos_relevantes: z.string().optional(),
+      diferenciales: z
+        .array(
+          z.object({
+            nombre: z.string(),
+            probabilidad: z.enum(["alta", "media", "baja"]),
+            fundamento: z.string(),
+          }),
+        )
+        .optional(),
+      plan_diagnostico: z.string().optional(),
+      plan_terapeutico: z.string().optional(),
+      educacion_paciente: z.string().optional(),
+      seguimiento: z.string().optional(),
+      banderas_rojas: z.array(z.string()).optional(),
+      derivacion_sugerida: z.string().optional(),
+      image_quality: z
+        .enum(["adequate", "limited", "insufficient", "none"])
+        .optional(),
+    })
+    .optional()
+    .nullable(),
   // Photos are uploaded separately via uploadConsultaFoto before save.
   // Here we receive their final storage paths (already in the bucket).
   fotos: z
