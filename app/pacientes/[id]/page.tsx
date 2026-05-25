@@ -80,7 +80,15 @@ export default async function PacientePage({ params }: PageProps) {
                 .join(" · ") || "Sin datos demográficos completos."}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {!paciente.archivado && (
+              <Link
+                href={`/consulta/nueva?paciente=${paciente.id}`}
+                className={buttonVariants({ size: "sm" })}
+              >
+                🎤 Nueva consulta
+              </Link>
+            )}
             <Link
               href={`/pacientes/${paciente.id}/editar`}
               className={buttonVariants({ variant: "outline", size: "sm" })}

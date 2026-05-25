@@ -66,6 +66,16 @@ export default async function DashboardPage() {
         </form>
       </header>
 
+      <Link
+        href="/consulta/nueva"
+        className={
+          buttonVariants({ size: "lg" }) +
+          " mb-6 flex h-14 w-full items-center justify-center text-base"
+        }
+      >
+        🎤 Nueva consulta
+      </Link>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader>
@@ -97,9 +107,9 @@ export default async function DashboardPage() {
             <CardTitle className="text-base">Próximamente</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-neutral-600">
-            <p>· Nueva consulta con IA (Capa 1)</p>
             <p>· Récipes en PDF (Capa 1)</p>
             <p>· Biblioteca personal + RAG (Capa 2)</p>
+            <p>· Digest semanal de novedades (Capa 3)</p>
           </CardContent>
         </Card>
       </div>
