@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import {
+  ArchivePacienteButton,
+  UnarchivePacienteButton,
+} from "./archive-button";
 import {
   Card,
   CardContent,
@@ -9,7 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { archivePaciente } from "../actions";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -51,8 +54,6 @@ export default async function PacientePage({ params }: PageProps) {
     notFound();
   }
 
-  const archiveAction = archivePaciente.bind(null, paciente.id);
-
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6">
       <header className="mb-6">
@@ -86,14 +87,27 @@ export default async function PacientePage({ params }: PageProps) {
             >
               Editar
             </Link>
-            <form action={archiveAction}>
-              <Button type="submit" variant="ghost" size="sm">
-                Archivar
-              </Button>
-            </form>
+            {paciente.archivado ? (
+              <UnarchivePacienteButton id={paciente.id} />
+            ) : (
+              <ArchivePacienteButton
+                id={paciente.id}
+                pacienteLabel={`${paciente.nombre} ${paciente.apellido}`}
+              />
+            )}
           </div>
         </div>
       </header>
+
+      {paciente.archivado && (
+        <div
+          className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+          role="status"
+        >
+          Este paciente está <strong>archivado</strong>. No aparece en la lista
+          principal. Puedes desarchivarlo cuando lo necesites.
+        </div>
+      )}
 
       <div className="space-y-4">
         <Card>

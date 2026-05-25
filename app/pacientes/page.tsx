@@ -8,7 +8,14 @@ export const metadata = {
   title: "Pacientes",
 };
 
-export default async function PacientesPage() {
+interface PageProps {
+  searchParams: Promise<{ archivados?: string }>;
+}
+
+export default async function PacientesPage({ searchParams }: PageProps) {
+  const { archivados } = await searchParams;
+  const showArchived = archivados === "1";
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -20,8 +27,14 @@ export default async function PacientesPage() {
     .select(
       "id, nombre, apellido, fecha_nacimiento, sexo, tipo_piel_fitzpatrick, telefono, updated_at",
     )
-    .eq("archivado", false)
+    .eq("archivado", showArchived)
     .order("apellido", { ascending: true });
+
+  // Count of the OTHER bucket so we can show the toggle with context.
+  const { count: otherCount } = await supabase
+    .from("pacientes")
+    .select("id", { count: "exact", head: true })
+    .eq("archivado", !showArchived);
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6">
@@ -30,7 +43,9 @@ export default async function PacientesPage() {
           <Link href="/dashboard" className="text-xs text-neutral-500 hover:underline">
             ← Dashboard
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight">Pacientes</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {showArchived ? "Pacientes archivados" : "Pacientes"}
+          </h1>
         </div>
         <Link
           href="/pacientes/nuevo"
@@ -40,8 +55,26 @@ export default async function PacientesPage() {
         </Link>
       </header>
 
+      <div className="mb-4 flex items-center justify-between text-xs">
+        {showArchived ? (
+          <Link href="/pacientes" className="text-neutral-700 hover:underline">
+            ← Volver a activos
+          </Link>
+        ) : (
+          <Link
+            href="/pacientes?archivados=1"
+            className="text-neutral-500 hover:underline"
+          >
+            Ver archivados {otherCount ? `(${otherCount})` : ""}
+          </Link>
+        )}
+      </div>
+
       {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+        <p
+          className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
+          role="alert"
+        >
           No pudimos cargar la lista de pacientes. Recarga la página.
         </p>
       )}

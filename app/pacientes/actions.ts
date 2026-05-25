@@ -142,11 +142,26 @@ export async function archivePaciente(id: string): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  await supabase
-    .from("pacientes")
-    .update({ archivado: true })
-    .eq("id", id);
+  await supabase.from("pacientes").update({ archivado: true }).eq("id", id);
 
   revalidatePath("/pacientes");
+  revalidatePath(`/pacientes/${id}`);
   redirect("/pacientes");
+}
+
+/**
+ * Restore a previously archived patient back into the main list.
+ */
+export async function unarchivePaciente(id: string): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  await supabase.from("pacientes").update({ archivado: false }).eq("id", id);
+
+  revalidatePath("/pacientes");
+  revalidatePath(`/pacientes/${id}`);
+  redirect(`/pacientes/${id}`);
 }
