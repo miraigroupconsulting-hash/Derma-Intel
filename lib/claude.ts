@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { promises as fs } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 
 /**
@@ -22,9 +23,48 @@ import path from "node:path";
 
 let _client: Anthropic | null = null;
 
+/**
+ * Resolve the Anthropic API key with a defensive fallback.
+ *
+ * In hosted environments (Vercel) the key is injected into process.env
+ * directly and we use it as-is. In local development a parent shell may
+ * export ANTHROPIC_API_KEY="" (empty string), which silently wins over
+ * .env.local because dotenv does not override existing env vars. When
+ * the inherited value is empty we fall back to reading .env.local from
+ * disk so the dev server still works without the developer having to
+ * unset the shell variable first.
+ */
+function resolveApiKey(): string | undefined {
+  const fromEnv = process.env.ANTHROPIC_API_KEY;
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  try {
+    const envPath = path.join(process.cwd(), ".env.local");
+    if (!existsSync(envPath)) return undefined;
+    const raw = readFileSync(envPath, "utf8");
+    for (const line of raw.split(/\r?\n/)) {
+      const idx = line.indexOf("=");
+      if (idx < 0) continue;
+      const k = line.slice(0, idx).trim();
+      if (k !== "ANTHROPIC_API_KEY") continue;
+      let v = line.slice(idx + 1).trim();
+      // Strip surrounding quotes if present.
+      if (
+        (v.startsWith('"') && v.endsWith('"')) ||
+        (v.startsWith("'") && v.endsWith("'"))
+      ) {
+        v = v.slice(1, -1);
+      }
+      return v.length > 0 ? v : undefined;
+    }
+  } catch {
+    // ignore — caller will throw the user-friendly message
+  }
+  return undefined;
+}
+
 function client(): Anthropic {
   if (_client) return _client;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = resolveApiKey();
   if (!apiKey) {
     throw new Error(
       "ANTHROPIC_API_KEY is not set. Add it to .env.local (server-only).",

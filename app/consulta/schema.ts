@@ -36,10 +36,23 @@ export const EMPTY_SOAP: SoapData = {
 
 /**
  * Input contract for POST /api/ia/estructurar-soap.
+ *
+ * `current_soap` is optional. When present and any of its four fields
+ * has content, the route runs in MERGE mode: instead of structuring
+ * the new text from scratch, it asks Claude to integrate the new text
+ * into the matching SOAP section while leaving the others intact.
  */
 export const estructurarSoapRequestSchema = z.object({
   texto: z.string().min(1, "El texto del dictado no puede estar vacío.").max(20000),
   paciente_id: z.string().uuid(),
+  current_soap: z
+    .object({
+      subjetivo: z.string().max(8000).default(""),
+      objetivo: z.string().max(8000).default(""),
+      analisis: z.string().max(8000).default(""),
+      plan: z.string().max(8000).default(""),
+    })
+    .optional(),
 });
 
 export type EstructurarSoapRequest = z.infer<

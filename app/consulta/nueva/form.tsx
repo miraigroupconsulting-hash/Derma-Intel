@@ -40,6 +40,18 @@ export interface NuevaConsultaFormProps {
   preselectedPacienteId?: string;
 }
 
+/**
+ * Dictation targets. 'global' = the raw-dictation panel above the SOAP
+ * sections; the SOAP keys = per-section microphones that dictate
+ * directly into one textarea. At most one can be active at a time.
+ */
+type DictationTarget =
+  | "global"
+  | "subjetivo"
+  | "objetivo"
+  | "analisis"
+  | "plan";
+
 const initialState: ConsultaActionState = { error: null };
 
 export function NuevaConsultaForm({
@@ -61,17 +73,30 @@ export function NuevaConsultaForm({
   const [pacienteId, setPacienteId] = useState(initialPacienteId);
   const [motivo, setMotivo] = useState("");
 
-  // Dictation state
-  const [transcript, setTranscript] = useState("");
-  const [interim, setInterim] = useState("");
-  const [isDictating, setIsDictating] = useState(false);
+  // ----- Shared dictation state ---------------------------------------
+  // active: which target is being dictated into (null = no one).
+  const [active, setActive] = useState<DictationTarget | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const voiceSupported = useRef(false);
 
+  // Per-target raw transcript (the "committed" text the recognizer
+  // produced so far for this session of dictation into this target).
+  // We keep these separate because the global panel and the SOAP
+  // sections each accumulate independently.
+  const [globalTranscript, setGlobalTranscript] = useState("");
+
   // SOAP state
   const [soap, setSoap] = useState<SoapData>(EMPTY_SOAP);
+
+  // While a SOAP-section mic is active, interim text is appended live
+  // to the value below the committed content. We hold it separately so
+  // we can clear it cleanly when the recognizer finalizes.
+  const [interim, setInterim] = useState("");
+
+  // IA structuring state
   const [isStructuring, setIsStructuring] = useState(false);
   const [structureError, setStructureError] = useState<string | null>(null);
+  const [structureNotice, setStructureNotice] = useState<string | null>(null);
 
   // Photos
   const [photos, setPhotos] = useState<ConsultaPhoto[]>([]);
@@ -85,7 +110,6 @@ export function NuevaConsultaForm({
   useEffect(() => {
     voiceSupported.current = voiceIsSupported();
     return () => {
-      // Abort any active dictation when the component unmounts.
       abortDictation();
     };
   }, []);
@@ -95,54 +119,93 @@ export function NuevaConsultaForm({
     ? `${selectedPaciente.nombre} ${selectedPaciente.apellido}`
     : "";
 
-  // ----- Voice handling -------------------------------------------------
+  // ----- Dictation orchestration --------------------------------------
 
-  const handleStartDictation = useCallback(() => {
-    setVoiceError(null);
-
-    if (!voiceSupported.current) {
-      setVoiceError(dictationErrorMessage("not-supported"));
-      return;
-    }
-
-    setIsDictating(true);
-    startDictation({
-      onTranscript: (text, final) => {
-        if (final) {
-          setTranscript((prev) => (prev ? `${prev} ${text}`.trim() : text));
-          setInterim("");
-        } else {
-          setInterim(text);
-        }
-      },
-      onError: (err: DictationError) => {
-        setVoiceError(err.message);
-        setIsDictating(false);
-        setInterim("");
-      },
-      onEnd: () => {
-        setIsDictating(false);
-        setInterim("");
-      },
-    });
-  }, []);
-
-  const handleStopDictation = useCallback(() => {
+  const stopActive = useCallback(() => {
     stopDictation();
+    setInterim("");
+    setActive(null);
   }, []);
 
-  const clearTranscript = useCallback(() => {
-    setTranscript("");
+  const startFor = useCallback(
+    (target: DictationTarget) => {
+      setVoiceError(null);
+      if (!voiceSupported.current) {
+        setVoiceError(dictationErrorMessage("not-supported"));
+        return;
+      }
+      // If another target is active, abort it cleanly first.
+      if (active && active !== target) {
+        abortDictation();
+        setInterim("");
+      }
+      setActive(target);
+
+      startDictation({
+        onTranscript: (text, final) => {
+          if (target === "global") {
+            if (final) {
+              setGlobalTranscript((prev) =>
+                prev ? `${prev} ${text}`.trim() : text,
+              );
+              setInterim("");
+            } else {
+              setInterim(text);
+            }
+          } else {
+            // Append straight into the corresponding SOAP field.
+            if (final) {
+              setSoap((s) => {
+                const prev = s[target] || "";
+                return {
+                  ...s,
+                  [target]: prev ? `${prev} ${text}`.trim() : text,
+                };
+              });
+              setInterim("");
+            } else {
+              setInterim(text);
+            }
+          }
+        },
+        onError: (err: DictationError) => {
+          setVoiceError(err.message);
+          setActive(null);
+          setInterim("");
+        },
+        onEnd: () => {
+          setActive(null);
+          setInterim("");
+        },
+      });
+    },
+    [active],
+  );
+
+  const toggleFor = useCallback(
+    (target: DictationTarget) => {
+      if (active === target) {
+        stopActive();
+      } else {
+        startFor(target);
+      }
+    },
+    [active, startFor, stopActive],
+  );
+
+  const clearGlobalTranscript = useCallback(() => {
+    setGlobalTranscript("");
     setInterim("");
   }, []);
 
-  // ----- Structure with IA ---------------------------------------------
+  // ----- Structure with IA --------------------------------------------
 
   const handleStructure = useCallback(async () => {
-    if (!transcript.trim()) {
-      setStructureError(
-        "Dicta o escribe algo antes de estructurar con IA.",
-      );
+    setStructureError(null);
+    setStructureNotice(null);
+
+    if (!globalTranscript.trim()) {
+      setStructureError("Dicta o escribe algo en el panel arriba antes.");
       return;
     }
     if (!pacienteId) {
@@ -150,13 +213,31 @@ export function NuevaConsultaForm({
       return;
     }
 
-    setStructureError(null);
+    const hasExistingSoap =
+      !!soap.subjetivo.trim() ||
+      !!soap.objetivo.trim() ||
+      !!soap.analisis.trim() ||
+      !!soap.plan.trim();
+
     setIsStructuring(true);
     try {
       const res = await fetch("/api/ia/estructurar-soap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto: transcript, paciente_id: pacienteId }),
+        body: JSON.stringify({
+          texto: globalTranscript,
+          paciente_id: pacienteId,
+          // Send current SOAP only if non-empty: turns the call into
+          // merge mode on the server.
+          current_soap: hasExistingSoap
+            ? {
+                subjetivo: soap.subjetivo,
+                objetivo: soap.objetivo,
+                analisis: soap.analisis,
+                plan: soap.plan,
+              }
+            : undefined,
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -177,6 +258,11 @@ export function NuevaConsultaForm({
           ? data.datos_faltantes
           : [],
       });
+      if (hasExistingSoap) {
+        setStructureNotice(
+          "La IA integró el nuevo texto en las secciones existentes.",
+        );
+      }
     } catch {
       setStructureError(
         "Error de red al hablar con la IA. Puedes editar manualmente.",
@@ -184,9 +270,9 @@ export function NuevaConsultaForm({
     } finally {
       setIsStructuring(false);
     }
-  }, [transcript, pacienteId]);
+  }, [globalTranscript, pacienteId, soap]);
 
-  // ----- Save -----------------------------------------------------------
+  // ----- Save ---------------------------------------------------------
 
   const handleSave = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
@@ -197,6 +283,8 @@ export function NuevaConsultaForm({
       }
       setServerState(initialState);
       setIsSaving(true);
+      abortDictation();
+      setActive(null);
 
       const payload = {
         paciente_id: pacienteId,
@@ -205,7 +293,7 @@ export function NuevaConsultaForm({
         objetivo: soap.objetivo,
         analisis: soap.analisis,
         plan: soap.plan,
-        transcripcion_raw: transcript,
+        transcripcion_raw: globalTranscript,
         fotos: photos.map((p) => ({
           storage_path: p.storage_path,
           tipo: p.tipo,
@@ -221,10 +309,10 @@ export function NuevaConsultaForm({
       }
       router.push(`/consulta/${result.consultaId}`);
     },
-    [pacienteId, motivo, soap, transcript, photos, router],
+    [pacienteId, motivo, soap, globalTranscript, photos, router],
   );
 
-  // ----- Render ---------------------------------------------------------
+  // ----- Render -------------------------------------------------------
 
   return (
     <form
@@ -233,7 +321,11 @@ export function NuevaConsultaForm({
     >
       <header className="mb-5 flex items-center justify-between gap-2">
         <Link
-          href="/dashboard"
+          href={
+            preselectedPacienteId
+              ? `/pacientes/${preselectedPacienteId}`
+              : "/dashboard"
+          }
           className="text-xs text-neutral-500 hover:underline"
         >
           ← Volver
@@ -272,22 +364,21 @@ export function NuevaConsultaForm({
       </section>
 
       <section className="mb-5">
-        <DictationPanel
-          isDictating={isDictating}
-          onStart={handleStartDictation}
-          onStop={handleStopDictation}
-          transcript={transcript}
-          interim={interim}
-          onTranscriptChange={setTranscript}
-          onClear={clearTranscript}
-          voiceError={voiceError}
+        <GlobalDictationPanel
+          active={active === "global"}
+          onToggle={() => toggleFor("global")}
+          transcript={globalTranscript}
+          interim={active === "global" ? interim : ""}
+          onChange={setGlobalTranscript}
+          onClear={clearGlobalTranscript}
+          voiceError={active === null ? voiceError : null}
         />
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
-            disabled={!transcript.trim() || isStructuring}
+            disabled={!globalTranscript.trim() || isStructuring}
             onClick={handleStructure}
           >
             {isStructuring ? "Estructurando con IA…" : "Estructurar con IA"}
@@ -295,6 +386,11 @@ export function NuevaConsultaForm({
           {structureError && (
             <p className="text-xs text-red-600" role="alert">
               {structureError}
+            </p>
+          )}
+          {structureNotice && !structureError && (
+            <p className="text-xs text-emerald-700" role="status">
+              {structureNotice}
             </p>
           )}
           {soap.datos_faltantes.length > 0 && !soap.anamnesis_completa && (
@@ -306,36 +402,65 @@ export function NuevaConsultaForm({
         </div>
       </section>
 
+      <h2 className="mt-2 mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
+        Nota clínica estructurada
+      </h2>
+
       <section className="space-y-4">
         <SoapTextarea
           id="subjetivo"
           label="Subjetivo"
           hint="Lo que el paciente reporta: síntomas, evolución, tiempo."
           value={soap.subjetivo}
+          interim={active === "subjetivo" ? interim : ""}
           onChange={(v) => setSoap((s) => ({ ...s, subjetivo: v }))}
+          dictationActive={active === "subjetivo"}
+          dictationDisabled={active !== null && active !== "subjetivo"}
+          onToggleDictation={() => toggleFor("subjetivo")}
         />
         <SoapTextarea
           id="objetivo"
           label="Objetivo"
           hint="Hallazgos del examen físico: morfología, distribución, dermatoscopia."
           value={soap.objetivo}
+          interim={active === "objetivo" ? interim : ""}
           onChange={(v) => setSoap((s) => ({ ...s, objetivo: v }))}
+          dictationActive={active === "objetivo"}
+          dictationDisabled={active !== null && active !== "objetivo"}
+          onToggleDictation={() => toggleFor("objetivo")}
         />
         <SoapTextarea
           id="analisis"
           label="Análisis"
-          hint="Impresión clínica inicial. NO escribas “diagnóstico definitivo” aquí — usa diferenciales."
+          hint="Impresión clínica inicial. Usa diferenciales — nunca diagnóstico definitivo."
           value={soap.analisis}
+          interim={active === "analisis" ? interim : ""}
           onChange={(v) => setSoap((s) => ({ ...s, analisis: v }))}
+          dictationActive={active === "analisis"}
+          dictationDisabled={active !== null && active !== "analisis"}
+          onToggleDictation={() => toggleFor("analisis")}
         />
         <SoapTextarea
           id="plan"
           label="Plan"
           hint="Conducta acordada con el paciente, estudios, tratamiento, control."
           value={soap.plan}
+          interim={active === "plan" ? interim : ""}
           onChange={(v) => setSoap((s) => ({ ...s, plan: v }))}
+          dictationActive={active === "plan"}
+          dictationDisabled={active !== null && active !== "plan"}
+          onToggleDictation={() => toggleFor("plan")}
         />
       </section>
+
+      {voiceError && active === null && (
+        <p
+          className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700"
+          role="alert"
+        >
+          {voiceError}
+        </p>
+      )}
 
       <section className="mt-6">
         <PhotoUploader
@@ -381,36 +506,46 @@ export function NuevaConsultaForm({
 // Sub-components
 // =====================================================================
 
-function DictationPanel({
-  isDictating,
-  onStart,
-  onStop,
+/**
+ * Dictation panel above the SOAP sections. Visually distinct from the
+ * SOAP cards (gradient background + colored top accent + explicit
+ * heading) so the médico never confuses this textarea with one of the
+ * four S/O/A/P fields.
+ */
+function GlobalDictationPanel({
+  active,
+  onToggle,
   transcript,
   interim,
-  onTranscriptChange,
+  onChange,
   onClear,
   voiceError,
 }: {
-  isDictating: boolean;
-  onStart: () => void;
-  onStop: () => void;
+  active: boolean;
+  onToggle: () => void;
   transcript: string;
   interim: string;
-  onTranscriptChange: (value: string) => void;
+  onChange: (value: string) => void;
   onClear: () => void;
   voiceError: string | null;
 }) {
   return (
-    <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-          Dictado
-        </span>
-        {transcript && !isDictating && (
+    <div className="rounded-lg border-2 border-dashed border-neutral-300 bg-neutral-50 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-neutral-700">
+            Dictado libre
+          </p>
+          <p className="text-xs text-neutral-500">
+            Habla todo de corrido. La IA lo reorganiza en S/O/A/P abajo
+            cuando das tap a “Estructurar con IA”.
+          </p>
+        </div>
+        {transcript && !active && (
           <button
             type="button"
             onClick={onClear}
-            className="text-xs text-neutral-500 hover:text-neutral-900 hover:underline"
+            className="shrink-0 text-xs text-neutral-500 hover:text-neutral-900 hover:underline"
           >
             Limpiar
           </button>
@@ -420,18 +555,18 @@ function DictationPanel({
       <Button
         type="button"
         size="lg"
-        variant={isDictating ? "destructive" : "default"}
-        onClick={isDictating ? onStop : onStart}
-        className="mt-2 h-14 w-full text-base"
+        variant={active ? "destructive" : "default"}
+        onClick={onToggle}
+        className="h-14 w-full text-base"
       >
-        {isDictating ? "■ Parar dictado" : "🎤 Dictar consulta"}
+        {active ? "■ Parar dictado" : "🎤 Dictar todo"}
       </Button>
 
       <Textarea
         rows={4}
         value={transcript + (interim ? ` ${interim}` : "")}
-        onChange={(e) => onTranscriptChange(e.target.value)}
-        placeholder="Aquí aparece tu dictado. También puedes escribir directamente."
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Aquí queda el dictado crudo. También puedes escribir directo."
         className="mt-3 bg-white"
       />
 
@@ -449,24 +584,60 @@ function SoapTextarea({
   label,
   hint,
   value,
+  interim,
   onChange,
+  dictationActive,
+  dictationDisabled,
+  onToggleDictation,
 }: {
   id: string;
   label: string;
   hint: string;
   value: string;
+  interim: string;
   onChange: (v: string) => void;
+  dictationActive: boolean;
+  dictationDisabled: boolean;
+  onToggleDictation: () => void;
 }) {
+  const displayValue = value + (interim ? ` ${interim}` : "");
   return (
-    <div className="rounded-md border border-neutral-200 p-3">
-      <Label htmlFor={id} className="text-sm font-semibold uppercase tracking-wide">
-        {label}
-      </Label>
+    <div
+      className={
+        "rounded-md border p-3 transition-colors " +
+        (dictationActive
+          ? "border-red-300 bg-red-50/40"
+          : "border-neutral-200 bg-white")
+      }
+    >
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <Label
+          htmlFor={id}
+          className="text-sm font-semibold uppercase tracking-wide"
+        >
+          {label}
+        </Label>
+        <Button
+          type="button"
+          variant={dictationActive ? "destructive" : "ghost"}
+          size="sm"
+          disabled={dictationDisabled}
+          onClick={onToggleDictation}
+          aria-label={
+            dictationActive
+              ? `Parar dictado de ${label}`
+              : `Dictar en ${label}`
+          }
+          className="h-7 gap-1"
+        >
+          {dictationActive ? "■ Parar" : "🎤 Dictar"}
+        </Button>
+      </div>
       <p className="mt-0.5 text-xs text-neutral-500">{hint}</p>
       <Textarea
         id={id}
         rows={3}
-        value={value}
+        value={displayValue}
         onChange={(e) => onChange(e.target.value)}
         className="mt-2"
       />

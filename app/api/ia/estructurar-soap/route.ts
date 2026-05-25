@@ -22,7 +22,7 @@ function estimateCostUsd(inputTokens: number, outputTokens: number): number {
   );
 }
 
-const SOAP_SYSTEM_PROMPT = `Eres un asistente especializado en estructurar transcripciones clínicas dermatológicas en formato SOAP.
+const SOAP_FROM_SCRATCH_PROMPT = `Eres un asistente especializado en estructurar transcripciones clínicas dermatológicas en formato SOAP.
 
 Recibirás un texto crudo dictado por un dermatólogo durante o después de una consulta. Tu único trabajo es reorganizarlo en JSON con esta forma EXACTA:
 
@@ -45,6 +45,67 @@ REGLAS INVIOLABLES:
 6. Output: ÚNICAMENTE el JSON. Sin markdown, sin texto adicional, sin disclaimers. Solo el JSON parseable.
 
 datos_faltantes debe incluir cosas críticas que NO se mencionaron pero que ayudarían (ej. tiempo de evolución, tratamientos previos, antecedentes relevantes, fototipo de piel, alergias).`;
+
+/**
+ * Build the merge-mode prompt. The médico has partially filled the four
+ * SOAP fields already; the new text is an addendum that must be
+ * classified and integrated into the section it logically belongs to,
+ * leaving the others untouched.
+ */
+function buildMergePrompt(current: {
+  subjetivo: string;
+  objetivo: string;
+  analisis: string;
+  plan: string;
+}): string {
+  return `Eres un asistente especializado en estructurar transcripciones clínicas dermatológicas en formato SOAP.
+
+El dermatólogo YA TIENE 4 secciones SOAP con contenido. Te entrega un fragmento NUEVO (texto dictado adicional) y necesita que lo integres en la sección que corresponda, SIN tocar las otras.
+
+ESTADO ACTUAL DE LAS 4 SECCIONES:
+
+[SUBJETIVO]
+${current.subjetivo || "(vacío)"}
+
+[OBJETIVO]
+${current.objetivo || "(vacío)"}
+
+[ANÁLISIS]
+${current.analisis || "(vacío)"}
+
+[PLAN]
+${current.plan || "(vacío)"}
+
+INSTRUCCIONES:
+
+1. Clasifica el FRAGMENTO NUEVO en exactamente UNA de las 4 secciones según su contenido clínico:
+   - Síntomas, tiempo de evolución, lo que dice el paciente → subjetivo
+   - Hallazgos del examen físico, dermatoscopia → objetivo
+   - Diferenciales, impresión clínica → analisis
+   - Tratamiento, conducta, próximo control, derivación → plan
+2. APPEND el fragmento al final de la sección que corresponde (no reemplazar — añadir con una línea en blanco entre el contenido previo y el nuevo).
+3. Las otras 3 secciones se devuelven EXACTAMENTE como estaban.
+4. Devuelve JSON con esta forma:
+
+{
+  "subjetivo": "...",
+  "objetivo": "...",
+  "analisis": "...",
+  "plan": "...",
+  "anamnesis_completa": true | false,
+  "datos_faltantes": [...]
+}
+
+REGLAS INVIOLABLES:
+
+1. NUNCA inventes datos. Solo reorganiza lo que ya está.
+2. NUNCA escribas "diagnóstico" sin calificativo.
+3. NUNCA incluyas información personal identificable (nombre, cédula, teléfono).
+4. Mantén el tono clínico del médico.
+5. Output: ÚNICAMENTE el JSON. Sin markdown, sin disclaimers, sin texto adicional.
+
+Si el fragmento NUEVO es ambiguo y podría caer en dos secciones, escoge la más probable y NO dupliques.`;
+}
 
 interface ClaudeUsage {
   input_tokens?: number;
@@ -103,6 +164,32 @@ export async function POST(req: Request) {
   const fullName = `${paciente.nombre} ${paciente.apellido}`;
   const anonymized = anonymizeText(parsed.data.texto, fullName);
 
+  // Anonymize current SOAP too (defense in depth — names sometimes
+  // slip into a manually-typed field).
+  const anonymizedCurrent = parsed.data.current_soap
+    ? {
+        subjetivo: anonymizeText(parsed.data.current_soap.subjetivo, fullName),
+        objetivo: anonymizeText(parsed.data.current_soap.objetivo, fullName),
+        analisis: anonymizeText(parsed.data.current_soap.analisis, fullName),
+        plan: anonymizeText(parsed.data.current_soap.plan, fullName),
+      }
+    : null;
+
+  const isMergeMode =
+    !!anonymizedCurrent &&
+    (anonymizedCurrent.subjetivo.trim().length > 0 ||
+      anonymizedCurrent.objetivo.trim().length > 0 ||
+      anonymizedCurrent.analisis.trim().length > 0 ||
+      anonymizedCurrent.plan.trim().length > 0);
+
+  const systemPrompt = isMergeMode
+    ? buildMergePrompt(anonymizedCurrent!)
+    : SOAP_FROM_SCRATCH_PROMPT;
+
+  const userTurn = isMergeMode
+    ? `FRAGMENTO NUEVO A INTEGRAR:\n\n${anonymized}\n\nResponde SOLO con el JSON de las 4 secciones (con el fragmento integrado en la que corresponde).`
+    : `TEXTO A ESTRUCTURAR:\n\n${anonymized}\n\nResponde SOLO con el JSON estructurado.`;
+
   // ----- Call Claude --------------------------------------------------
   const t0 = Date.now();
   try {
@@ -112,7 +199,7 @@ export async function POST(req: Request) {
       userMessages: [
         {
           role: "user",
-          content: `${SOAP_SYSTEM_PROMPT}\n\n---\n\nTEXTO A ESTRUCTURAR:\n\n${anonymized}\n\n---\n\nResponde SOLO con el JSON estructurado.`,
+          content: `${systemPrompt}\n\n---\n\n${userTurn}`,
         },
       ],
     });
@@ -127,7 +214,7 @@ export async function POST(req: Request) {
     // server logs to aggregate.
     // eslint-disable-next-line no-console
     console.log(
-      `[claude-call] mode=soap model=${response.model} prompt_tokens=${inputTok} completion_tokens=${outputTok} total_tokens=${inputTok + outputTok} est_cost_usd=${costUsd.toFixed(6)} latency_ms=${latencyMs}`,
+      `[claude-call] mode=soap submode=${isMergeMode ? "merge" : "scratch"} model=${response.model} prompt_tokens=${inputTok} completion_tokens=${outputTok} total_tokens=${inputTok + outputTok} est_cost_usd=${costUsd.toFixed(6)} latency_ms=${latencyMs}`,
     );
 
     // ----- Extract + parse JSON from the model's text reply -----------

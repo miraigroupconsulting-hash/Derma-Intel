@@ -35,6 +35,16 @@ const SEXO_LABEL: Record<string, string> = {
   O: "Otro",
 };
 
+function formatFecha(fecha: string): string {
+  const d = new Date(fecha);
+  if (isNaN(d.getTime())) return fecha;
+  return d.toLocaleString("es-VE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/Caracas",
+  });
+}
+
 export default async function PacientePage({ params }: PageProps) {
   const { id } = await params;
 
@@ -53,6 +63,13 @@ export default async function PacientePage({ params }: PageProps) {
   if (error || !paciente) {
     notFound();
   }
+
+  const { data: consultas } = await supabase
+    .from("consultas")
+    .select("id, fecha, motivo, estado")
+    .eq("paciente_id", id)
+    .order("fecha", { ascending: false })
+    .limit(50);
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6">
@@ -118,6 +135,66 @@ export default async function PacientePage({ params }: PageProps) {
       )}
 
       <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-base">
+                Consultas ({consultas?.length ?? 0})
+              </CardTitle>
+              {!paciente.archivado && (
+                <Link
+                  href={`/consulta/nueva?paciente=${paciente.id}`}
+                  className={buttonVariants({ size: "sm" })}
+                >
+                  + Nueva
+                </Link>
+              )}
+            </div>
+            <CardDescription>
+              Historial cronológico. La más reciente primero.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!consultas || consultas.length === 0 ? (
+              <p className="text-sm text-neutral-500">
+                Aún no hay consultas registradas para este paciente.
+              </p>
+            ) : (
+              <ul className="divide-y divide-neutral-200">
+                {consultas.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      href={`/consulta/${c.id}`}
+                      className="flex items-center justify-between gap-3 py-3 hover:bg-neutral-50"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-neutral-900">
+                          {formatFecha(c.fecha)}
+                        </p>
+                        <p className="truncate text-xs text-neutral-600">
+                          {c.motivo || "Sin motivo registrado"}
+                        </p>
+                      </div>
+                      <span
+                        className={
+                          "shrink-0 rounded-full px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide " +
+                          (c.estado === "completada"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : c.estado === "borrador"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-neutral-100 text-neutral-600")
+                        }
+                      >
+                        {c.estado}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Contacto</CardTitle>
