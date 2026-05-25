@@ -1,21 +1,21 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import type { Database } from "@/types/database";
 
 /**
- * Refresh the Supabase session on every request.
- * Called from the root middleware.ts.
+ * Refresh the Supabase session on every request and enforce gates:
  *
- * This ensures the auth cookie is renewed and that protected routes
- * see an up-to-date user. Also enforces the auth gate: unauthenticated
- * visits to /dashboard (and similar) get redirected to /login.
+ *   1. Auth gate: unauthenticated visits to protected routes go to /login.
+ *   2. Onboarding gate: authenticated médicos without onboarding_completed
+ *      get redirected to /onboarding (except when already on it).
+ *   3. Authenticated users hitting /login or /signup bounce to /dashboard.
  *
- * Public routes (landing, login, signup, manifest, icons, _next) are
- * left alone.
+ * Public routes (/, manifest, icons, _next) are left alone.
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
-  const supabase = createServerClient(
+  const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -41,13 +41,16 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // Auth gate: protected routes require a session.
   const isProtected =
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/pacientes") ||
     pathname.startsWith("/consulta") ||
-    pathname.startsWith("/biblioteca");
+    pathname.startsWith("/biblioteca") ||
+    pathname.startsWith("/onboarding");
 
+  const isAuthPage = pathname === "/login" || pathname === "/signup";
+
+  // Auth gate: protected routes require a session.
   if (isProtected && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
@@ -56,11 +59,27 @@ export async function updateSession(request: NextRequest) {
   }
 
   // If a logged-in user hits /login or /signup, bounce to dashboard.
-  const isAuthPage = pathname === "/login" || pathname === "/signup";
   if (isAuthPage && user) {
     const dashUrl = request.nextUrl.clone();
     dashUrl.pathname = "/dashboard";
     return NextResponse.redirect(dashUrl);
+  }
+
+  // Onboarding gate: any authenticated route except /onboarding itself
+  // requires the médico to have completed onboarding.
+  const isOnboardingPage = pathname.startsWith("/onboarding");
+  if (user && isProtected && !isOnboardingPage) {
+    const { data: medico } = await supabase
+      .from("medicos")
+      .select("onboarding_completed")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!medico?.onboarding_completed) {
+      const onboardingUrl = request.nextUrl.clone();
+      onboardingUrl.pathname = "/onboarding";
+      return NextResponse.redirect(onboardingUrl);
+    }
   }
 
   return supabaseResponse;
