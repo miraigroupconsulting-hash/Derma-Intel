@@ -27,13 +27,17 @@ export interface ConsultaPhoto {
 }
 
 const COMPRESSION_OPTS: ImageCompressionOptions = {
-  // Cap output around 1.5 MB; keeps Storage usage low and IA payloads quick.
-  maxSizeMB: 1.5,
-  // 2048px is plenty for dermoscopy review; downscales 50MP iPhone shots.
-  maxWidthOrHeight: 2048,
+  // 1 MB cap; keeps Storage usage low and IA payloads cheap (image
+  // tokens scale roughly with pixel area, and Sonnet output is ~5x
+  // the input price so every input byte saved compounds).
+  maxSizeMB: 1.0,
+  // 1280px on the longest edge. Dermoscopy review still resolves
+  // pigment network, vessels, and morphology at this resolution while
+  // costing ~60% less in image tokens than 2048px.
+  maxWidthOrHeight: 1280,
   useWebWorker: true,
   fileType: "image/jpeg",
-  initialQuality: 0.92,
+  initialQuality: 0.9,
 };
 
 function randomId(): string {

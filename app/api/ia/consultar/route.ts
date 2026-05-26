@@ -102,9 +102,27 @@ const requestSchema = z.object({
         content: z.string().max(20000),
       }),
     )
-    .max(20)
+    // Capped at 8 turns. Beyond that conversations rarely add useful
+    // context and the input-token cost grows linearly — the médico
+    // can start a fresh session if they need a deeper thread.
+    .max(8)
     .optional(),
 });
+
+/**
+ * Per-modo max output tokens. Calibrated against the real usage data
+ * in uso_ia at Día 4 close: the default of 2500 was leaving Sonnet
+ * responses bloated. These caps trim ~30% of output tokens without
+ * sacrificing clinical usefulness. Update when usage data matures.
+ */
+const MAX_TOKENS_BY_MODE: Record<ClinicalMode, number> = {
+  CASO_CLINICO: 1500,
+  EXPRESS: 800,
+  BIBLIOGRAFIA: 1500,
+  HISTOPATOLOGIA: 1500,
+  TERAPEUTICA: 1500,
+  DOCENTE: 2000,
+};
 
 // =====================================================================
 // SSE helpers
@@ -362,7 +380,7 @@ export async function POST(req: Request) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           userMessages: userMessages as any, // SDK types coerce ok
           systemPromptOverride: systemPrompt,
-          maxTokens: 2500,
+          maxTokens: MAX_TOKENS_BY_MODE[mode],
         });
 
         // Forward each text delta to the client.
