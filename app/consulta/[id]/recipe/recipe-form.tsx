@@ -38,6 +38,7 @@ import {
   startDictation,
   stopDictation,
 } from "@/lib/voice";
+import { normalizePhoneForWhatsapp } from "@/lib/phone";
 
 const PDFViewer = dynamic(
   () => import("@react-pdf/renderer").then((m) => m.PDFViewer),
@@ -410,10 +411,14 @@ export function RecipeForm({
 
   // ----- WhatsApp ----------------------------------------------------
 
-  const whatsappHref = useMemo(() => {
-    if (!signedUrl || !paciente.telefono) return null;
-    const tel = paciente.telefono.replace(/\D/g, "");
-    if (tel.length < 7) return null;
+  const whatsappLink = useMemo(() => {
+    if (!signedUrl || !paciente.telefono) {
+      return { href: null, display: null };
+    }
+    const { e164NoPlus, display } = normalizePhoneForWhatsapp(
+      paciente.telefono,
+    );
+    if (!e164NoPlus) return { href: null, display: null };
     const medicoFullName =
       [medico.nombre, medico.apellido].filter(Boolean).join(" ") ||
       "tu médico";
@@ -421,7 +426,10 @@ export function RecipeForm({
       timeZone: "America/Caracas",
     });
     const msg = `Hola ${paciente.nombre}, aquí va el récipe de tu consulta del ${fechaTxt}. Adjúntalo desde tu galería en este chat. Cualquier duda, escríbeme. — Dr/a. ${medicoFullName}`;
-    return `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
+    return {
+      href: `https://wa.me/${e164NoPlus}?text=${encodeURIComponent(msg)}`,
+      display,
+    };
   }, [signedUrl, paciente, medico, fecha]);
 
   // ----- Render ------------------------------------------------------
@@ -557,9 +565,9 @@ export function RecipeForm({
               >
                 📥 Descargar PDF
               </a>
-              {whatsappHref ? (
+              {whatsappLink.href ? (
                 <a
-                  href={whatsappHref}
+                  href={whatsappLink.href}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex h-9 items-center rounded-md border border-emerald-700 bg-white px-3 text-sm font-medium text-emerald-800 hover:bg-emerald-50"
@@ -574,6 +582,13 @@ export function RecipeForm({
                 </span>
               )}
             </div>
+            {whatsappLink.display && (
+              <p className="text-xs text-emerald-800/70">
+                Se abrirá WhatsApp con el número{" "}
+                <span className="font-medium">{whatsappLink.display}</span>.
+                Verifica que sea el correcto antes de enviar.
+              </p>
+            )}
           </div>
         )}
 
