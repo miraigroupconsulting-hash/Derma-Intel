@@ -44,17 +44,19 @@ export interface ParsedPrompts {
 }
 
 const PROMPT_FILE = path.join(process.cwd(), "prompts", "derma-intel-v2.md");
+const IS_DEV = process.env.NODE_ENV === "development";
 
 let _cache: ParsedPrompts | null = null;
 
 /**
- * Read + parse the prompt file. Cached for the lifetime of the
- * server process. Throws if the file or any required section is
- * missing — failing fast beats silently sending half-built prompts
- * to a clinical IA.
+ * Read + parse the prompt file. Cached in production for the lifetime
+ * of the server process; bypassed in development so the dermatóloga can
+ * tune the prompt without restarting the dev server. Throws if the
+ * file or any required section is missing — failing fast beats
+ * silently sending half-built prompts to a clinical IA.
  */
 export async function loadPrompts(): Promise<ParsedPrompts> {
-  if (_cache) return _cache;
+  if (_cache && !IS_DEV) return _cache;
 
   const raw = await fs.readFile(PROMPT_FILE, "utf8");
   const base = extractBase(raw);

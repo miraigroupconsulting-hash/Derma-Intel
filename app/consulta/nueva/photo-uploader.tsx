@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import imageCompression, { type Options as ImageCompressionOptions } from "browser-image-compression";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -58,6 +58,7 @@ export function PhotoUploader({
 }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = useCallback(
     async (files: FileList | null) => {
@@ -219,28 +220,38 @@ export function PhotoUploader({
         </ul>
       )}
 
-      {photos.length < maxPhotos && (
-        <label
-          className={
-            buttonClass +
-            (uploading ? " opacity-60 pointer-events-none" : "") +
-            " flex cursor-pointer items-center justify-center gap-2"
-          }
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          const files = e.target.files;
+          // Clear the value FIRST so picking the same file again still fires
+          // onChange. Then dispatch the upload async.
+          e.target.value = "";
+          void handleFiles(files);
+        }}
+      />
+
+      {photos.length < maxPhotos ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={uploading}
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full"
         >
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            multiple
-            className="hidden"
-            disabled={uploading}
-            onChange={(e) => {
-              void handleFiles(e.target.files);
-              // Reset so picking the same file again still fires onChange.
-              e.target.value = "";
-            }}
-          />
-          {uploading ? "Procesando…" : "📷 Agregar foto"}
-        </label>
+          {uploading ? "Procesando…" : `📷 Agregar foto (${maxPhotos - photos.length} restante${maxPhotos - photos.length === 1 ? "" : "s"})`}
+        </Button>
+      ) : (
+        <p className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-center text-xs text-neutral-600">
+          Llegaste al máximo de {maxPhotos} fotos para esta consulta. Quita
+          una antes de agregar otra.
+        </p>
       )}
 
       {uploadError && (
@@ -257,8 +268,3 @@ export function PhotoUploader({
   );
 }
 
-// Inline class set used by the file-input label (shadcn Button can't wrap
-// a real <input type="file"> while keeping a11y, so we replicate its
-// look for this single case).
-const buttonClass =
-  "inline-flex h-9 w-full items-center justify-center rounded-md border border-neutral-300 bg-white px-4 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-100";
