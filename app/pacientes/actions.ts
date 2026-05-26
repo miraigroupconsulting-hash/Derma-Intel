@@ -21,6 +21,7 @@ function readFormPaciente(formData: FormData) {
     antecedentes: formData.get("antecedentes"),
     medicacion_actual: formData.get("medicacion_actual"),
     telefono: formData.get("telefono"),
+    cedula: formData.get("cedula"),
     email: formData.get("email"),
     notas: formData.get("notas"),
   };
@@ -71,6 +72,7 @@ export async function createPaciente(
       antecedentes: parsed.data.antecedentes ?? null,
       medicacion_actual: parsed.data.medicacion_actual ?? null,
       telefono: parsed.data.telefono ?? null,
+      cedula: parsed.data.cedula ?? null,
       email: parsed.data.email ?? null,
       notas: parsed.data.notas ?? null,
     })
@@ -116,6 +118,7 @@ export async function updatePaciente(
       antecedentes: parsed.data.antecedentes ?? null,
       medicacion_actual: parsed.data.medicacion_actual ?? null,
       telefono: parsed.data.telefono ?? null,
+      cedula: parsed.data.cedula ?? null,
       email: parsed.data.email ?? null,
       notas: parsed.data.notas ?? null,
     })

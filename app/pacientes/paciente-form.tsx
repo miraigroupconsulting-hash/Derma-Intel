@@ -166,6 +166,22 @@ export function PacienteForm({
             />
           </Field>
         </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            id="cedula"
+            label="Cédula / documento de identidad"
+            error={err("cedula")}
+          >
+            <Input
+              id="cedula"
+              name="cedula"
+              autoComplete="off"
+              placeholder="V-12345678, E-12345678, etc."
+              defaultValue={defaultValues.cedula}
+            />
+          </Field>
+        </div>
       </fieldset>
 
       <fieldset className="space-y-4">

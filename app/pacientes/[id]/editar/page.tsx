@@ -24,7 +24,7 @@ export default async function EditarPacientePage({ params }: PageProps) {
   const { data: paciente } = await supabase
     .from("pacientes")
     .select(
-      "id, nombre, apellido, fecha_nacimiento, sexo, tipo_piel_fitzpatrick, alergias, antecedentes, medicacion_actual, telefono, email, notas",
+      "id, nombre, apellido, fecha_nacimiento, sexo, tipo_piel_fitzpatrick, alergias, antecedentes, medicacion_actual, telefono, cedula, email, notas",
     )
     .eq("id", id)
     .maybeSingle();
@@ -44,6 +44,7 @@ export default async function EditarPacientePage({ params }: PageProps) {
     antecedentes: paciente.antecedentes ?? "",
     medicacion_actual: paciente.medicacion_actual ?? "",
     telefono: paciente.telefono ?? "",
+    cedula: paciente.cedula ?? "",
     email: paciente.email ?? "",
     notas: paciente.notas ?? "",
   };

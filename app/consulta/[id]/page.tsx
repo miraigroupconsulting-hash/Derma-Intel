@@ -16,6 +16,8 @@ import {
 import { AnalisisIaPanel } from "../nueva/analisis-ia-panel";
 import { IaPanel } from "./ia-panel";
 import { SavedIaSessions } from "./saved-ia-sessions";
+import { RecipeRow } from "./recipe-row";
+import { parseRevisiones } from "./recipe/revisiones";
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
 
@@ -93,7 +95,9 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
   // Récipes ya generados para esta consulta.
   const { data: recipes } = await supabase
     .from("recipes")
-    .select("id, medicamentos, firmado, fecha, pdf_storage_path")
+    .select(
+      "id, medicamentos, firmado, fecha, pdf_storage_path, revisiones",
+    )
     .eq("consulta_id", id)
     .order("fecha", { ascending: false });
 
@@ -103,6 +107,7 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
     num: number;
     firmado: boolean;
     url: string | null;
+    revisiones: import("./recipe/revisiones").RevisionEntry[];
   }> = [];
   for (const r of recipes ?? []) {
     let url: string | null = null;
@@ -119,6 +124,7 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
       num: meds,
       firmado: r.firmado,
       url,
+      revisiones: parseRevisiones(r.revisiones),
     });
   }
   const fechaConsulta = new Date(consulta.fecha);
@@ -219,41 +225,24 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
                 Récipes ({recipeRows.length})
               </CardTitle>
               <CardDescription className="text-xs">
-                PDFs generados para esta consulta.
+                PDFs generados para esta consulta. Puedes desfirmar y
+                re-firmar si necesitas corregir uno; el historial queda
+                registrado.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="divide-y divide-neutral-200">
                 {recipeRows.map((r) => (
-                  <li
-                    key={r.id}
-                    className="flex items-center justify-between gap-3 py-2 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <p>
-                        {new Date(r.fecha).toLocaleString("es-VE", {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                          timeZone: "America/Caracas",
-                        })}
-                      </p>
-                      <p className="text-xs text-neutral-500">
-                        {r.num} fármaco{r.num === 1 ? "" : "s"}{" "}
-                        {r.firmado ? "· firmado" : "· borrador"}
-                      </p>
-                    </div>
-                    {r.url ? (
-                      <a
-                        href={r.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={buttonVariants({ variant: "outline", size: "sm" })}
-                      >
-                        Descargar
-                      </a>
-                    ) : (
-                      <span className="text-xs text-neutral-400">PDF no disponible</span>
-                    )}
+                  <li key={r.id} className="py-3">
+                    <RecipeRow
+                      recipeId={r.id}
+                      consultaId={consulta.id}
+                      fecha={r.fecha}
+                      num={r.num}
+                      firmado={r.firmado}
+                      url={r.url}
+                      revisiones={r.revisiones}
+                    />
                   </li>
                 ))}
               </ul>

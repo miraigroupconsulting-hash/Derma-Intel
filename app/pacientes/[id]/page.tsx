@@ -200,6 +200,7 @@ export default async function PacientePage({ params }: PageProps) {
             <CardTitle className="text-base">Contacto</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
+            <Row label="Cédula" value={paciente.cedula} />
             <Row label="Teléfono" value={paciente.telefono} />
             <Row label="Correo" value={paciente.email} />
           </CardContent>

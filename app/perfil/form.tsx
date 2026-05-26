@@ -193,13 +193,15 @@ export function PerfilForm({
           label="Logo de tu consultorio"
           hint="Aparece arriba a la izquierda del récipe. Recomendado: PNG con fondo transparente, máx. 500 KB."
           initialUrl={initialLogoUrl}
+          maxDimension={800}
         />
 
         <AssetUploader
           field="firma"
           label="Firma digital"
-          hint="Aparece sobre la línea de firma. Toma una foto de tu firma sobre papel blanco; recórtala antes de subir."
+          hint="Foto de tu firma sobre papel blanco, con buena luz. Recórtala bien pegada al trazo antes de subir — la app la comprime automáticamente a 600px."
           initialUrl={initialFirmaUrl}
+          maxDimension={600}
         />
       </fieldset>
     </div>
@@ -211,11 +213,16 @@ function AssetUploader({
   label,
   hint,
   initialUrl,
+  maxDimension,
 }: {
   field: "logo" | "firma";
   label: string;
   hint: string;
   initialUrl: string | null;
+  /** Longest-edge clamp in pixels. Default 800 (logo); pass 600 for
+   *  firmas to keep the file lean even when the médico subió una foto
+   *  HD del papel. */
+  maxDimension?: number;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -240,7 +247,9 @@ function AssetUploader({
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Sesión expirada.");
 
-      const png = await convertImageToPng(file, { maxDimension: 800 });
+      const png = await convertImageToPng(file, {
+        maxDimension: maxDimension ?? 800,
+      });
       if (png.size > 2 * 1024 * 1024) {
         throw new Error("PNG resultante mayor a 2 MB. Sube una imagen más pequeña.");
       }

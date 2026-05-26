@@ -63,6 +63,7 @@ export const pacienteSchema = z.object({
     .preprocess(trimToNull, z.string().max(2000).nullable())
     .optional(),
   telefono: z.preprocess(trimToNull, z.string().max(40).nullable()).optional(),
+  cedula: z.preprocess(trimToNull, z.string().max(40).nullable()).optional(),
   email: z
     .preprocess(
       trimToNull,
@@ -93,6 +94,7 @@ export interface PacienteFormDefaults {
   antecedentes: string;
   medicacion_actual: string;
   telefono: string;
+  cedula: string;
   email: string;
   notas: string;
 }
@@ -107,6 +109,7 @@ export const emptyPacienteDefaults: PacienteFormDefaults = {
   antecedentes: "",
   medicacion_actual: "",
   telefono: "",
+  cedula: "",
   email: "",
   notas: "",
 };

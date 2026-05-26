@@ -377,6 +377,7 @@ export type Database = {
           antecedentes: string | null
           apellido: string
           archivado: boolean
+          cedula: string | null
           created_at: string
           email: string | null
           fecha_nacimiento: string | null
@@ -395,6 +396,7 @@ export type Database = {
           antecedentes?: string | null
           apellido: string
           archivado?: boolean
+          cedula?: string | null
           created_at?: string
           email?: string | null
           fecha_nacimiento?: string | null
@@ -413,6 +415,7 @@ export type Database = {
           antecedentes?: string | null
           apellido?: string
           archivado?: boolean
+          cedula?: string | null
           created_at?: string
           email?: string | null
           fecha_nacimiento?: string | null
@@ -449,6 +452,7 @@ export type Database = {
           medico_id: string
           paciente_id: string
           pdf_storage_path: string | null
+          revisiones: Json
           updated_at: string
         }
         Insert: {
@@ -463,6 +467,7 @@ export type Database = {
           medico_id: string
           paciente_id: string
           pdf_storage_path?: string | null
+          revisiones?: Json
           updated_at?: string
         }
         Update: {
@@ -477,6 +482,7 @@ export type Database = {
           medico_id?: string
           paciente_id?: string
           pdf_storage_path?: string | null
+          revisiones?: Json
           updated_at?: string
         }
         Relationships: [

@@ -13,20 +13,39 @@ export const VIAS_ADMIN = [
   "Otra",
 ] as const;
 
+/**
+ * Día 5 — schema extendido para recipe.
+ *
+ * Campos nuevos sobre Día 4:
+ *   concentracion, cantidad, frecuencia, zona, es_controlado
+ *
+ * `dosis` se mantiene como campo opcional para retrocompatibilidad
+ * con récipes existentes. Si solo está `dosis` (legacy), el PDF lo
+ * usa como línea de "frecuencia". Si están los campos nuevos, se
+ * usan en su lugar y `dosis` se ignora visualmente.
+ *
+ * `nombre` ahora exige solo 1 char (en lugar de 2) porque algunos
+ * fármacos abreviados son cortos. Validación clínica fuerte la hace
+ * el médico al revisar; el schema no debe pelearle.
+ */
 export const medicamentoSchema = z.object({
   nombre: z
     .string()
     .trim()
-    .min(2, "Indica el nombre del fármaco.")
+    .min(1, "Indica el nombre del fármaco.")
     .max(200),
   presentacion: z.string().trim().max(200).optional().nullable(),
-  dosis: z
-    .string()
-    .trim()
-    .min(1, "Indica la dosis.")
-    .max(200),
-  via: z.string().trim().max(60).optional().nullable(),
+  concentracion: z.string().trim().max(100).optional().nullable(),
+  cantidad: z.string().trim().max(100).optional().nullable(),
+  frecuencia: z.string().trim().max(200).optional().nullable(),
   duracion: z.string().trim().max(200).optional().nullable(),
+  via: z.string().trim().max(60).optional().nullable(),
+  zona: z.string().trim().max(120).optional().nullable(),
+  es_controlado: z.boolean().default(false),
+  /** Legacy field — kept nullable for backward compat with Día-4
+   *  recipes already stored in DB. New flows fill the structured
+   *  fields above instead. */
+  dosis: z.string().trim().max(200).optional().nullable(),
   indicaciones: z.string().trim().max(600).optional().nullable(),
 });
 
@@ -46,9 +65,14 @@ export type SaveRecipeInput = z.infer<typeof saveRecipeSchema>;
 export const EMPTY_MEDICAMENTO: Medicamento = {
   nombre: "",
   presentacion: null,
-  dosis: "",
-  via: null,
+  concentracion: null,
+  cantidad: null,
+  frecuencia: null,
   duracion: null,
+  via: null,
+  zona: null,
+  es_controlado: false,
+  dosis: null,
   indicaciones: null,
 };
 
@@ -69,11 +93,7 @@ export function suggestMedicamentosFromPlan(plan: string | null): Medicamento[] 
     .map((l) => l.trim())
     .filter((l) => l.length > 4);
   return lines.slice(0, 5).map((l) => ({
+    ...EMPTY_MEDICAMENTO,
     nombre: l.slice(0, 200),
-    presentacion: null,
-    dosis: "",
-    via: null,
-    duracion: null,
-    indicaciones: null,
   }));
 }
