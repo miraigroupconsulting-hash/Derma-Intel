@@ -217,7 +217,6 @@ function AssetUploader({
   hint: string;
   initialUrl: string | null;
 }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialUrl);
@@ -262,9 +261,10 @@ function AssetUploader({
         .from("medico-assets")
         .createSignedUrl(path, 60 * 60);
       setPreviewUrl(signed?.signedUrl ?? null);
-      router.refresh();
+      // No router.refresh() — local preview state already reflects the
+      // upload. Refreshing would re-mount the form's uncontrolled inputs
+      // and trigger a Base UI "changing default value" warning.
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error(`[perfil ${field}] upload failed:`, e);
       setError(e instanceof Error ? e.message : "Error al subir.");
     } finally {
@@ -286,7 +286,7 @@ function AssetUploader({
       const result = await updateMedicoAssetPath(field, null);
       if (!result.ok) throw new Error(result.error);
       setPreviewUrl(null);
-      router.refresh();
+      // Same as handleFile: local state already updates the UI.
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al quitar.");
     } finally {
