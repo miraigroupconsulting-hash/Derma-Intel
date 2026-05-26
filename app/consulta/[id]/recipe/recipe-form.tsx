@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { pdf } from "@react-pdf/renderer";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,13 +100,28 @@ export function RecipeForm({
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Sesión expirada.");
 
-      // Render the document to a blob (browser-side).
-      const blob = await pdf(pdfDocument).toBlob();
+      // Lazy-import react-pdf so its module-level code only runs in the
+      // browser. Top-level imports were tripping Next's bundler.
+      const { pdf } = await import("@react-pdf/renderer");
+
+      let blob: Blob;
+      try {
+        blob = await pdf(pdfDocument).toBlob();
+      } catch (pdfErr) {
+        // eslint-disable-next-line no-console
+        console.error("[recipe] pdf().toBlob failed:", pdfErr);
+        throw new Error(
+          `Falló la generación del PDF: ${pdfErr instanceof Error ? pdfErr.message : "error desconocido"}`,
+        );
+      }
       if (blob.size > 5 * 1024 * 1024) {
         throw new Error("PDF demasiado grande (>5MB). Reduce el contenido.");
       }
 
-      const recipeUuid = crypto.randomUUID();
+      const recipeUuid =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const storagePath = `${user.id}/${consultaId}/${recipeUuid}.pdf`;
 
       const { error: upErr } = await supabase.storage
@@ -133,6 +147,8 @@ export function RecipeForm({
       setSignedUrl(result.signedUrl ?? null);
       router.refresh();
     } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[recipe] generate failed:", e);
       setError(e instanceof Error ? e.message : "Error al generar el récipe.");
     } finally {
       setBusy(false);

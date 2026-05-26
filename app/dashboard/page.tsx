@@ -59,11 +59,19 @@ export default async function DashboardPage() {
             <p className="mt-1 text-xs text-neutral-500">{medico.especialidad}</p>
           )}
         </div>
-        <form action={logout}>
-          <Button type="submit" variant="outline" size="sm">
-            Salir
-          </Button>
-        </form>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/perfil"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            Mi perfil
+          </Link>
+          <form action={logout}>
+            <Button type="submit" variant="outline" size="sm">
+              Salir
+            </Button>
+          </form>
+        </div>
       </header>
 
       <Link

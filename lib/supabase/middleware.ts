@@ -46,7 +46,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/pacientes") ||
     pathname.startsWith("/consulta") ||
     pathname.startsWith("/biblioteca") ||
-    pathname.startsWith("/onboarding");
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/perfil");
 
   const isAuthPage = pathname === "/login" || pathname === "/signup";
 

@@ -12,6 +12,10 @@ const baseConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // @react-pdf/renderer ships hybrid ESM/CJS that confuses Next's bundler
+  // unless we transpile it explicitly. Otherwise pdf() and PDFViewer
+  // throw "Cannot read properties of undefined" at runtime.
+  transpilePackages: ["@react-pdf/renderer"],
 };
 
 const withPWA = withPWAInit({

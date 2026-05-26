@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
-import { saveRecipeSchema, type SaveRecipeInput, type Medicamento } from "./schema";
+import { saveRecipeSchema, type SaveRecipeInput } from "./schema";
 import type { Database } from "@/types/database";
 
 type RecipesJson = Database["public"]["Tables"]["recipes"]["Insert"]["medicamentos"];
@@ -89,23 +89,3 @@ export async function saveRecipe(
   };
 }
 
-/**
- * Reasonable starter medicamentos derived from the consulta's
- * plan_terapeutico free text. Heuristic only — we split by newline
- * and treat each line as a draft entry. Médico edits before saving.
- */
-export function suggestMedicamentosFromPlan(plan: string | null): Medicamento[] {
-  if (!plan || !plan.trim()) return [];
-  const lines = plan
-    .split(/\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 4);
-  return lines.slice(0, 5).map((l) => ({
-    nombre: l.slice(0, 200),
-    presentacion: null,
-    dosis: "",
-    via: null,
-    duracion: null,
-    indicaciones: null,
-  }));
-}

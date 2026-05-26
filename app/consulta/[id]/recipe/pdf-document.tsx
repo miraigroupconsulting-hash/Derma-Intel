@@ -1,6 +1,6 @@
 "use client";
 
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { Medicamento } from "./schema";
 
 const styles = StyleSheet.create({
@@ -13,14 +13,20 @@ const styles = StyleSheet.create({
     color: "#171717",
   },
   header: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     borderBottomWidth: 1,
     borderBottomColor: "#171717",
     paddingBottom: 8,
     marginBottom: 14,
   },
+  headerText: { flex: 1, paddingRight: 12 },
+  headerLogo: { width: 80, height: 80, objectFit: "contain" },
   medicoNombre: { fontSize: 15, fontWeight: 700 },
   medicoEspecialidad: { fontSize: 10, color: "#525252", marginTop: 2 },
   medicoLinea: { fontSize: 9, color: "#525252", marginTop: 6 },
+  medicoDireccion: { fontSize: 9, color: "#525252", marginTop: 3 },
 
   metaRow: {
     flexDirection: "row",
@@ -67,6 +73,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
   },
+  firmaBox: { width: 200, alignItems: "center" },
+  firmaImage: { width: 180, height: 60, objectFit: "contain", marginBottom: 4 },
   firmaLine: { borderTopWidth: 1, borderTopColor: "#171717", width: 200, paddingTop: 4 },
   firmaLabel: { fontSize: 9, color: "#525252", textAlign: "center" },
 
@@ -91,6 +99,11 @@ export interface RecipePdfMedico {
   cedula_profesional: string | null;
   pais_cedula: string | null;
   telefono: string | null;
+  direccion: string | null;
+  /** Signed URL or data URL for the médico's logo. PDF skips if null. */
+  logoUrl: string | null;
+  /** Signed URL or data URL for the médico's signature. PDF skips if null. */
+  firmaUrl: string | null;
 }
 
 export interface RecipePdfPaciente {
@@ -138,13 +151,22 @@ export function RecipePdfDocument({
     <Document>
       <Page size="LETTER" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.medicoNombre}>
-            Dr/a. {medico.nombre} {medico.apellido}
-          </Text>
-          {medico.especialidad && (
-            <Text style={styles.medicoEspecialidad}>{medico.especialidad}</Text>
+          <View style={styles.headerText}>
+            <Text style={styles.medicoNombre}>
+              Dr/a. {medico.nombre} {medico.apellido}
+            </Text>
+            {medico.especialidad && (
+              <Text style={styles.medicoEspecialidad}>{medico.especialidad}</Text>
+            )}
+            {medicoLine && <Text style={styles.medicoLinea}>{medicoLine}</Text>}
+            {medico.direccion && (
+              <Text style={styles.medicoDireccion}>{medico.direccion}</Text>
+            )}
+          </View>
+          {medico.logoUrl && (
+            // eslint-disable-next-line jsx-a11y/alt-text
+            <Image style={styles.headerLogo} src={medico.logoUrl} />
           )}
-          {medicoLine && <Text style={styles.medicoLinea}>{medicoLine}</Text>}
         </View>
 
         <View style={styles.metaRow}>
@@ -189,7 +211,11 @@ export function RecipePdfDocument({
 
         <View style={styles.firmaBlock}>
           <View />
-          <View>
+          <View style={styles.firmaBox}>
+            {medico.firmaUrl && (
+              // eslint-disable-next-line jsx-a11y/alt-text
+              <Image style={styles.firmaImage} src={medico.firmaUrl} />
+            )}
             <Text style={styles.firmaLine}> </Text>
             <Text style={styles.firmaLabel}>Firma y sello del médico</Text>
           </View>

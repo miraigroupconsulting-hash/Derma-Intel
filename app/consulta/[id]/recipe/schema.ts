@@ -51,3 +51,29 @@ export const EMPTY_MEDICAMENTO: Medicamento = {
   duracion: null,
   indicaciones: null,
 };
+
+/**
+ * Pure helper. Lives in schema.ts (not actions.ts) because actions.ts
+ * is a "use server" file — Next.js requires every export there to be
+ * an async Server Action.
+ *
+ * Reasonable starter medicamentos derived from the consulta's
+ * plan_terapeutico free text. Heuristic only — split by newline and
+ * treat each substantive line as a draft entry. Médico edits before
+ * saving.
+ */
+export function suggestMedicamentosFromPlan(plan: string | null): Medicamento[] {
+  if (!plan || !plan.trim()) return [];
+  const lines = plan
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 4);
+  return lines.slice(0, 5).map((l) => ({
+    nombre: l.slice(0, 200),
+    presentacion: null,
+    dosis: "",
+    via: null,
+    duracion: null,
+    indicaciones: null,
+  }));
+}

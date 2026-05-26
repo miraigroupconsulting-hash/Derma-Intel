@@ -319,10 +319,12 @@ export type Database = {
           apellido: string | null
           cedula_profesional: string | null
           created_at: string
+          direccion: string | null
           email: string
           especialidad: string | null
           firma_digital_path: string | null
           id: string
+          logo_storage_path: string | null
           nombre: string | null
           onboarding_completed: boolean
           pais_cedula: string | null
@@ -335,10 +337,12 @@ export type Database = {
           apellido?: string | null
           cedula_profesional?: string | null
           created_at?: string
+          direccion?: string | null
           email: string
           especialidad?: string | null
           firma_digital_path?: string | null
           id: string
+          logo_storage_path?: string | null
           nombre?: string | null
           onboarding_completed?: boolean
           pais_cedula?: string | null
@@ -351,10 +355,12 @@ export type Database = {
           apellido?: string | null
           cedula_profesional?: string | null
           created_at?: string
+          direccion?: string | null
           email?: string
           especialidad?: string | null
           firma_digital_path?: string | null
           id?: string
+          logo_storage_path?: string | null
           nombre?: string | null
           onboarding_completed?: boolean
           pais_cedula?: string | null
