@@ -184,6 +184,71 @@ export type Database = {
           },
         ]
       }
+      comparaciones: {
+        Row: {
+          exportada: boolean
+          fecha_creacion: string
+          foto_antes_id: string
+          foto_despues_id: string
+          id: string
+          medico_id: string
+          notas: string | null
+          paciente_id: string
+          updated_at: string
+        }
+        Insert: {
+          exportada?: boolean
+          fecha_creacion?: string
+          foto_antes_id: string
+          foto_despues_id: string
+          id?: string
+          medico_id: string
+          notas?: string | null
+          paciente_id: string
+          updated_at?: string
+        }
+        Update: {
+          exportada?: boolean
+          fecha_creacion?: string
+          foto_antes_id?: string
+          foto_despues_id?: string
+          id?: string
+          medico_id?: string
+          notas?: string | null
+          paciente_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comparaciones_foto_antes_id_fkey"
+            columns: ["foto_antes_id"]
+            isOneToOne: false
+            referencedRelation: "fotos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comparaciones_foto_despues_id_fkey"
+            columns: ["foto_despues_id"]
+            isOneToOne: false
+            referencedRelation: "fotos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comparaciones_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comparaciones_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consultas: {
         Row: {
           anamnesis: string | null

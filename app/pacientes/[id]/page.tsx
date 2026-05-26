@@ -140,6 +140,12 @@ export default async function PacientePage({ params }: PageProps) {
               </Link>
             )}
             <Link
+              href={`/pacientes/${paciente.id}/evolucion`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              📷 Evolución
+            </Link>
+            <Link
               href={`/pacientes/${paciente.id}/editar`}
               className={buttonVariants({ variant: "outline", size: "sm" })}
             >
