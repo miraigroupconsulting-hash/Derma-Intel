@@ -39,6 +39,8 @@ import {
   stopDictation,
 } from "@/lib/voice";
 import { normalizePhoneForWhatsapp } from "@/lib/phone";
+import { enqueueRecipe } from "@/lib/offline-db";
+import { downloadBlob, syncOutbox } from "@/lib/recipe-sync";
 
 const PDFViewer = dynamic(
   () => import("@react-pdf/renderer").then((m) => m.PDFViewer),
@@ -115,6 +117,15 @@ export function RecipeForm({
   // Sign modal state
   const [showSignModal, setShowSignModal] = useState(false);
   const [signConfirmText, setSignConfirmText] = useState("");
+
+  /**
+   * `offlineQueued` is true when the upload couldn't reach Supabase
+   * (network failure) and we fell through to the IndexedDB outbox.
+   * The médica still gets a local PDF download she can hand to the
+   * patient via WhatsApp; the actual sync happens later, automatically
+   * on 'online' event or manually via the dashboard.
+   */
+  const [offlineQueued, setOfflineQueued] = useState(false);
 
   const fecha = useMemo(() => new Date(), []);
 
@@ -340,34 +351,55 @@ export function RecipeForm({
     }
     setError(null);
     setSignedUrl(null);
+    setOfflineQueued(false);
     setBusy(true);
+
+    // Step 1 — render PDF locally. This works offline.
+    let blob: Blob;
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Sesión expirada.");
-
       const { pdf } = await import("@react-pdf/renderer");
-      let blob: Blob;
-      try {
-        blob = await pdf(pdfDocument).toBlob();
-      } catch (pdfErr) {
-        console.error("[recipe] pdf().toBlob failed:", pdfErr);
-        throw new Error(
-          `Falló la generación del PDF: ${pdfErr instanceof Error ? pdfErr.message : "error desconocido"}`,
-        );
-      }
-      if (blob.size > 5 * 1024 * 1024) {
-        throw new Error("PDF demasiado grande (>5MB). Reduce el contenido.");
-      }
+      blob = await pdf(pdfDocument).toBlob();
+    } catch (pdfErr) {
+      console.error("[recipe] pdf().toBlob failed:", pdfErr);
+      setError(
+        `Falló la generación del PDF: ${pdfErr instanceof Error ? pdfErr.message : "error desconocido"}`,
+      );
+      setBusy(false);
+      return;
+    }
+    if (blob.size > 5 * 1024 * 1024) {
+      setError("PDF demasiado grande (>5MB). Reduce el contenido.");
+      setBusy(false);
+      return;
+    }
 
-      const recipeUuid =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const storagePath = `${user.id}/${consultaId}/${recipeUuid}.pdf`;
+    // Step 2 — resolve user. getUser uses the cached session if offline.
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setError("Sesión expirada. Inicia sesión nuevamente.");
+      setBusy(false);
+      return;
+    }
 
+    const recipeUuid =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const storagePath = `${user.id}/${consultaId}/${recipeUuid}.pdf`;
+    const pacienteApellidoSlug = paciente.apellido
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    const localFilename = `recipe-${pacienteApellidoSlug || "paciente"}-${new Date()
+      .toISOString()
+      .slice(0, 10)}.pdf`;
+
+    // Step 3 — try the online happy-path. If anything network-y fails,
+    // fall through to the IDB outbox so the récipe isn't lost.
+    try {
       const { error: upErr } = await supabase.storage
         .from("recetas-pdf")
         .upload(storagePath, blob, {
@@ -389,12 +421,49 @@ export function RecipeForm({
       if (result.error) {
         throw new Error(result.error);
       }
+
       setSignedUrl(result.signedUrl ?? null);
       setShowSignModal(false);
       router.refresh();
     } catch (e) {
-      console.error("[recipe] generate failed:", e);
-      setError(e instanceof Error ? e.message : "Error al generar el récipe.");
+      const msg = e instanceof Error ? e.message : String(e);
+      const looksOffline =
+        !navigator.onLine ||
+        /failed to fetch|network|networkerror|load failed/i.test(msg);
+
+      if (looksOffline) {
+        console.warn("[recipe] online path failed, queuing to outbox:", msg);
+        try {
+          await enqueueRecipe({
+            id: recipeUuid,
+            medico_id: user.id,
+            consulta_id: consultaId,
+            paciente_id: pacienteId,
+            pdfBlob: blob,
+            pdfStoragePath: storagePath,
+            payload: {
+              medicamentos,
+              indicaciones_paciente: indicacionesPaciente || null,
+              firmado: true,
+              existingRecipeId,
+            },
+            firmadoAt: new Date().toISOString(),
+            attempts: 0,
+            lastError: msg,
+          });
+          downloadBlob(blob, localFilename);
+          setOfflineQueued(true);
+          setShowSignModal(false);
+        } catch (queueErr) {
+          console.error("[recipe] outbox enqueue failed:", queueErr);
+          setError(
+            "Sin conexión y no pudimos guardar el récipe localmente. Descarga el PDF manualmente desde la vista previa.",
+          );
+        }
+      } else {
+        console.error("[recipe] generate failed (online error):", e);
+        setError(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -403,11 +472,40 @@ export function RecipeForm({
     signConfirmText,
     consultaId,
     existingRecipeId,
+    pacienteId,
+    paciente.apellido,
     medicamentos,
     indicacionesPaciente,
     pdfDocument,
     router,
   ]);
+
+  // Opportunistic outbox drain on online + on mount. Cheap when empty.
+  useEffect(() => {
+    let cancelled = false;
+    const tryDrain = async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+        await syncOutbox(user.id);
+        if (!cancelled) router.refresh();
+      } catch {
+        // Silent: this is best-effort.
+      }
+    };
+    if (navigator.onLine) void tryDrain();
+    const handleOnline = () => {
+      void tryDrain();
+    };
+    window.addEventListener("online", handleOnline);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [router]);
 
   // ----- WhatsApp ----------------------------------------------------
 
@@ -551,6 +649,23 @@ export function RecipeForm({
           >
             {error}
           </p>
+        )}
+
+        {offlineQueued && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 space-y-2">
+            <p>
+              <span className="font-medium">
+                ✓ Récipe firmado y guardado localmente.
+              </span>{" "}
+              Sin conexión a internet — el PDF se descargó al dispositivo
+              para que lo envíes ahora si lo necesitas. Cuando regrese la
+              señal, lo subiremos al expediente automáticamente.
+            </p>
+            <p className="text-xs text-amber-800/80">
+              Mientras tanto puedes compartirlo por WhatsApp adjuntando el
+              archivo descargado.
+            </p>
+          </div>
         )}
 
         {signedUrl && (

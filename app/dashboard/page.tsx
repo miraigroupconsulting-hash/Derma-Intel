@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { PendingRecipesPill } from "@/components/pending-recipes-pill";
 
 /**
  * Protected dashboard.
@@ -73,6 +74,10 @@ export default async function DashboardPage() {
           </form>
         </div>
       </header>
+
+      <div className="mb-6">
+        <PendingRecipesPill />
+      </div>
 
       <Link
         href="/consulta/nueva"

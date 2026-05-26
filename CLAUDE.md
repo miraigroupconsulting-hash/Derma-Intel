@@ -102,6 +102,7 @@ Stack zero-cost para el MVP. Cada capa tiene una justificación.
 | Búsqueda médica | **Tavily** o **Brave Search** | free tier | a decidir en capa 3 |
 | Presentaciones | **Gamma MCP** | (suscripción de Fer) | integración por MCP server |
 | PWA | **@ducanh2912/next-pwa** | latest | compat Next 15, SW + offline cache |
+| IndexedDB | **idb** | latest | Promise wrapper sobre IDB; usado para outbox de récipes y cache de pacientes offline |
 | Pagos | **Stripe** | latest | tier-gating en capa 4 |
 
 **Gestor de paquetes:** `npm` (no yarn, no pnpm). Lock file `package-lock.json` versionado.
@@ -287,7 +288,56 @@ En Vercel: las mismas 4, con los flags correctos (server-only vs public).
 
 ---
 
-## 12. Referencias
+## 12. PWA y comportamiento offline (Día 6+)
+
+DERMA INTEL Pro funciona como Progressive Web App. La señal en Caracas se cae con frecuencia (cortes de luz, módems intermitentes); la app está diseñada para sobrevivir esos huecos sin perder trabajo.
+
+### Capas de cache
+
+| Capa | Tecnología | Qué guarda | TTL |
+|---|---|---|---|
+| Service Worker | `@ducanh2912/next-pwa` (Workbox) | App shell, chunks JS/CSS, fonts, icons, **navegaciones recientes** (RSC + HTML), URLs firmadas de Supabase Storage | 24h–1y por tipo |
+| IndexedDB cache | `idb` lib | Snapshots de pacientes vistos + sus últimas 3 consultas | 7 días (purga a 28d) |
+| IndexedDB outbox | `idb` lib | Récipes firmados offline cuyo upload a Storage falló | Sin TTL — manual o auto-drain |
+
+### Lectura offline
+
+- Cada vez que se carga `/pacientes/[id]` con éxito, una mini-isla cliente (`cache-on-mount.tsx`) escribe un snapshot a IndexedDB.
+- Si el Server Component falla (red caída), Next.js renderiza `app/pacientes/[id]/error.tsx`, que lee de IDB y muestra la copia local con un banner ámbar *"Mostrando datos guardados localmente — última actualización [fecha]"*.
+- La lista global de pacientes y otras rutas dependen del SW cache; aún no tienen IDB fallback (futuro).
+
+### Escritura offline — récipes
+
+- `recipe-form.tsx`/`handleGenerate`: genera el PDF localmente, luego intenta upload a Storage + `saveRecipe` server action.
+- Si falla con error de red (o `!navigator.onLine`):
+  1. Guarda el blob + payload en `recipe_outbox` (IDB).
+  2. Dispara descarga del PDF al dispositivo de la médica (vía `lib/recipe-sync.ts` → `downloadBlob`).
+  3. Muestra banner ámbar *"Récipe firmado y guardado localmente — se subirá al regresar la señal"*.
+- Auto-drain: hook `useEffect` con listener `'online'` + drain on-mount llama a `syncOutbox(medicoId)`.
+- Drain manual: `PendingRecipesPill` en el dashboard muestra el contador y un botón "Sincronizar ahora".
+- Reintentos máximos: 5 por entry; después se marca como permanentemente fallido y queda visible para revisión manual.
+
+### Limitaciones conocidas (no son bugs)
+
+- **Idempotencia parcial del drain**: si la conexión se cae durante el replay (después del upload, antes del action), una reejecución crea una fila duplicada. Mitigation futura: pasar el outbox UUID como `recipeId` al action y dejar que Postgres rechace por PK conflict. *TODO Día 7+.*
+- **Crear paciente/consulta offline**: no implementado. Estos flujos asumen red activa. Si vienen sin señal, el formulario falla. *Decisión: priorizar récipes por ser el output cliente-facing más crítico.*
+- **IA offline**: nunca. Todas las llamadas a `/api/ia/*` requieren conexión a Anthropic (lógicamente imposible offline).
+- **Auth offline**: la sesión Supabase usa cookie HTTP-only con su propio TTL (~1h refresh). Si la cookie expira sin red, la médica no puede re-autenticar hasta que vuelva señal. Mitigation futura: extender refresh TTL al máximo o guardar el JWT en IDB con SSR fallback.
+- **Multi-pestaña**: dos pestañas firmando el mismo récipe offline generan 2 entries de outbox distintos (UUID por pestaña). Drain las sube como récipes separados.
+
+### Para probar offline en local
+
+```bash
+npm run build && npm run start
+# Abrir Chrome DevTools → Network → throttle: Offline
+# Navegar, firmar récipes, etc. Volver Online y observar drain automático.
+```
+
+El SW está deshabilitado en `next dev` para evitar dolores de cache; solo activa en build de producción.
+
+---
+
+## 13. Referencias
 
 - **PRD completo:** `DERMA_INTEL_Pro_PRD_v1.0.docx` (fuera del repo, en archivo de Mirai Lab).
 - **Cerebro clínico:** `prompts/derma-intel-v2.md` (en este repo).
@@ -297,5 +347,5 @@ En Vercel: las mismas 4, con los flags correctos (server-only vs public).
 
 ---
 
-*Última actualización: Día 1 — scaffolding inicial.*
+*Última actualización: Día 6 — PWA offline (récipe outbox + IDB cache de pacientes).*
 *Mantener este archivo vivo. Cada decisión grande se documenta aquí.*

@@ -13,6 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { CachePacienteOnMount } from "./cache-on-mount";
+import type { CachedPaciente } from "@/lib/offline-db";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -71,8 +73,39 @@ export default async function PacientePage({ params }: PageProps) {
     .order("fecha", { ascending: false })
     .limit(50);
 
+  // Snapshot for the offline cache. We pick a minimal subset that the
+  // UI actually needs to render this page so the IDB entry stays small.
+  const cacheSnapshot: CachedPaciente = {
+    id: paciente.id,
+    medico_id: user.id,
+    paciente: {
+      id: paciente.id,
+      nombre: paciente.nombre,
+      apellido: paciente.apellido,
+      fecha_nacimiento: paciente.fecha_nacimiento ?? null,
+      sexo: paciente.sexo ?? null,
+      tipo_piel_fitzpatrick: paciente.tipo_piel_fitzpatrick ?? null,
+      cedula: paciente.cedula ?? null,
+      telefono: paciente.telefono ?? null,
+      email: paciente.email ?? null,
+      alergias: paciente.alergias ?? null,
+      antecedentes: paciente.antecedentes ?? null,
+      medicacion_actual: paciente.medicacion_actual ?? null,
+      notas: paciente.notas ?? null,
+      archivado: paciente.archivado ?? false,
+    },
+    consultas: (consultas ?? []).slice(0, 3).map((c) => ({
+      id: c.id,
+      fecha: c.fecha,
+      motivo: c.motivo,
+      estado: c.estado,
+    })),
+    cachedAt: new Date().toISOString(),
+  };
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6">
+      <CachePacienteOnMount entry={cacheSnapshot} />
       <header className="mb-6">
         <Link
           href="/pacientes"
