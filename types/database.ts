@@ -558,6 +558,63 @@ export type Database = {
           },
         ]
       }
+      uso_ia: {
+        Row: {
+          consulta_id: string | null
+          costo_usd: number
+          estado: string
+          fecha: string
+          id: string
+          latency_ms: number | null
+          medico_id: string
+          modelo: string
+          modo: Database["public"]["Enums"]["ia_modo"]
+          tokens_input: number
+          tokens_output: number
+        }
+        Insert: {
+          consulta_id?: string | null
+          costo_usd: number
+          estado?: string
+          fecha?: string
+          id?: string
+          latency_ms?: number | null
+          medico_id: string
+          modelo: string
+          modo: Database["public"]["Enums"]["ia_modo"]
+          tokens_input: number
+          tokens_output: number
+        }
+        Update: {
+          consulta_id?: string | null
+          costo_usd?: number
+          estado?: string
+          fecha?: string
+          id?: string
+          latency_ms?: number | null
+          medico_id?: string
+          modelo?: string
+          modo?: Database["public"]["Enums"]["ia_modo"]
+          tokens_input?: number
+          tokens_output?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uso_ia_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uso_ia_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -569,6 +626,13 @@ export type Database = {
       consulta_estado: "borrador" | "completada" | "archivada"
       doc_tipo: "paper" | "libro" | "guia" | "presentacion" | "nota"
       foto_tipo: "clinica" | "dermatoscopia"
+      ia_modo:
+        | "caso_clinico"
+        | "express"
+        | "bibliografia"
+        | "histopatologia"
+        | "terapeutica"
+        | "docente"
       recordatorio_estado: "pendiente" | "completado" | "cancelado"
       recordatorio_tipo:
         | "control"
@@ -709,6 +773,14 @@ export const Constants = {
       consulta_estado: ["borrador", "completada", "archivada"],
       doc_tipo: ["paper", "libro", "guia", "presentacion", "nota"],
       foto_tipo: ["clinica", "dermatoscopia"],
+      ia_modo: [
+        "caso_clinico",
+        "express",
+        "bibliografia",
+        "histopatologia",
+        "terapeutica",
+        "docente",
+      ],
       recordatorio_estado: ["pendiente", "completado", "cancelado"],
       recordatorio_tipo: [
         "control",

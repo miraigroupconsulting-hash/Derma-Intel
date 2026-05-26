@@ -112,8 +112,16 @@ export function pickModel(task: ModelTask): string {
   }
 }
 
+/**
+ * Routing per CLAUDE.md §4 + Day 4 brief:
+ *   Haiku 4.5 (light) → Express, Terapéutica
+ *   Sonnet 4.6 (clinical/vision) → Caso Clínico, Bibliografía,
+ *                                  Histopatología, Docente
+ */
 export function pickModelForMode(mode: ClinicalMode): string {
-  return mode === "EXPRESS" ? pickModel("light") : pickModel("clinical");
+  return mode === "EXPRESS" || mode === "TERAPEUTICA"
+    ? pickModel("light")
+    : pickModel("clinical");
 }
 
 // ---------------------------------------------------------------------
@@ -168,6 +176,12 @@ export interface ClinicalCallInput {
   modelOverride?: string;
   /** Max tokens for the response. Defaults to 2048. */
   maxTokens?: number;
+  /**
+   * Override the system prompt entirely. When set, skip the §2 loader
+   * and use this string directly. Used by /api/ia/consultar which
+   * composes a per-mode prompt via lib/prompts/builder.
+   */
+  systemPromptOverride?: string;
 }
 
 /**
@@ -176,7 +190,7 @@ export interface ClinicalCallInput {
  * can inspect token usage, stop reason, and structured content blocks.
  */
 export async function runClinicalCall(input: ClinicalCallInput) {
-  const system = await loadSystemPrompt();
+  const system = input.systemPromptOverride ?? (await loadSystemPrompt());
   const model = input.modelOverride ?? pickModelForMode(input.mode);
 
   return client().messages.create({
@@ -185,4 +199,23 @@ export async function runClinicalCall(input: ClinicalCallInput) {
     system,
     messages: input.userMessages,
   });
+}
+
+/**
+ * Streaming variant. Returns the Anthropic MessageStream so the
+ * caller can iterate text deltas and forward them via SSE. The
+ * caller is responsible for closing the stream and reading the
+ * final usage from stream.finalMessage().
+ */
+export function streamClinicalCall(input: ClinicalCallInput) {
+  const model = input.modelOverride ?? pickModelForMode(input.mode);
+  return (async () => {
+    const system = input.systemPromptOverride ?? (await loadSystemPrompt());
+    return client().messages.stream({
+      model,
+      max_tokens: input.maxTokens ?? 2500,
+      system,
+      messages: input.userMessages,
+    });
+  })();
 }

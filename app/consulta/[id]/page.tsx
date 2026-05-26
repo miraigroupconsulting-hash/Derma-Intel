@@ -14,6 +14,8 @@ import {
   type AnalizarCasoResponse,
 } from "../schema";
 import { AnalisisIaPanel } from "../nueva/analisis-ia-panel";
+import { IaPanel } from "./ia-panel";
+import { SavedIaSessions } from "./saved-ia-sessions";
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
 
@@ -86,6 +88,39 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
 
   const transcripcionRaw = extractTranscripcion(consulta.notas_ia);
   const analisisIa = extractAnalisisIa(consulta.notas_ia);
+  const savedSessions = extractSavedSessions(consulta.notas_ia);
+
+  // Récipes ya generados para esta consulta.
+  const { data: recipes } = await supabase
+    .from("recipes")
+    .select("id, medicamentos, firmado, fecha, pdf_storage_path")
+    .eq("consulta_id", id)
+    .order("fecha", { ascending: false });
+
+  const recipeRows: Array<{
+    id: string;
+    fecha: string;
+    num: number;
+    firmado: boolean;
+    url: string | null;
+  }> = [];
+  for (const r of recipes ?? []) {
+    let url: string | null = null;
+    if (r.pdf_storage_path) {
+      const { data: signed } = await supabase.storage
+        .from("recetas-pdf")
+        .createSignedUrl(r.pdf_storage_path, SIGNED_URL_TTL_SECONDS);
+      url = signed?.signedUrl ?? null;
+    }
+    const meds = Array.isArray(r.medicamentos) ? r.medicamentos.length : 0;
+    recipeRows.push({
+      id: r.id,
+      fecha: r.fecha,
+      num: meds,
+      firmado: r.firmado,
+      url,
+    });
+  }
   const fechaConsulta = new Date(consulta.fecha);
   const fechaTexto = fechaConsulta.toLocaleString("es-VE", {
     dateStyle: "long",
@@ -116,12 +151,20 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
               Estado: {ESTADO_LABEL[consulta.estado]}
             </p>
           </div>
-          <Link
-            href={`/consulta/nueva?paciente=${paciente?.id ?? ""}`}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            + Otra consulta
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/consulta/${consulta.id}/recipe`}
+              className={buttonVariants({ size: "sm" })}
+            >
+              📄 Récipe
+            </Link>
+            <Link
+              href={`/consulta/nueva?paciente=${paciente?.id ?? ""}`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              + Otra consulta
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -169,7 +212,62 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
           </Card>
         )}
 
+        {recipeRows.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold uppercase tracking-wide">
+                Récipes ({recipeRows.length})
+              </CardTitle>
+              <CardDescription className="text-xs">
+                PDFs generados para esta consulta.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="divide-y divide-neutral-200">
+                {recipeRows.map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex items-center justify-between gap-3 py-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p>
+                        {new Date(r.fecha).toLocaleString("es-VE", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                          timeZone: "America/Caracas",
+                        })}
+                      </p>
+                      <p className="text-xs text-neutral-500">
+                        {r.num} fármaco{r.num === 1 ? "" : "s"}{" "}
+                        {r.firmado ? "· firmado" : "· borrador"}
+                      </p>
+                    </div>
+                    {r.url ? (
+                      <a
+                        href={r.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={buttonVariants({ variant: "outline", size: "sm" })}
+                      >
+                        Descargar
+                      </a>
+                    ) : (
+                      <span className="text-xs text-neutral-400">PDF no disponible</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+
         {analisisIa && <AnalisisIaPanel data={analisisIa} />}
+
+        <IaPanel consultaId={consulta.id} />
+
+        {savedSessions.length > 0 && (
+          <SavedIaSessions sessions={savedSessions} />
+        )}
 
         {transcripcionRaw && (
           <Card>
@@ -243,4 +341,27 @@ function extractAnalisisIa(notasIa: unknown): AnalizarCasoResponse | null {
   if (!a || typeof a !== "object") return null;
   const parsed = analizarCasoResponseSchema.safeParse(a);
   return parsed.success ? parsed.data : null;
+}
+
+interface SavedSession {
+  modo: string;
+  modelo: string;
+  fecha: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+}
+
+function extractSavedSessions(notasIa: unknown): SavedSession[] {
+  if (!notasIa || typeof notasIa !== "object") return [];
+  const raw = (notasIa as { consulta_ia?: unknown }).consulta_ia;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((s): s is SavedSession => {
+    if (!s || typeof s !== "object") return false;
+    const obj = s as Record<string, unknown>;
+    return (
+      typeof obj.modo === "string" &&
+      typeof obj.modelo === "string" &&
+      typeof obj.fecha === "string" &&
+      Array.isArray(obj.messages)
+    );
+  });
 }

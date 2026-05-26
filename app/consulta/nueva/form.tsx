@@ -22,14 +22,9 @@ import {
   stopDictation,
   type DictationError,
 } from "@/lib/voice";
-import {
-  EMPTY_SOAP,
-  type AnalizarCasoResponse,
-  type SoapData,
-} from "../schema";
+import { EMPTY_SOAP, type SoapData } from "../schema";
 import { saveConsulta, type ConsultaActionState } from "../actions";
 import { PhotoUploader, type ConsultaPhoto } from "./photo-uploader";
-import { AnalisisIaPanel } from "./analisis-ia-panel";
 
 export interface PacienteLite {
   id: string;
@@ -105,11 +100,6 @@ export function NuevaConsultaForm({
 
   // Photos
   const [photos, setPhotos] = useState<ConsultaPhoto[]>([]);
-
-  // Caso Clínico IA (image + context analyzer)
-  const [analizar, setAnalizar] = useState<AnalizarCasoResponse | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   // Save state
   const [serverState, setServerState] = useState<ConsultaActionState>(
@@ -282,66 +272,6 @@ export function NuevaConsultaForm({
     }
   }, [globalTranscript, pacienteId, soap]);
 
-  // ----- Caso Clínico (IA con imagen + contexto) ----------------------
-
-  const handleAnalizar = useCallback(async () => {
-    setAnalyzeError(null);
-
-    if (!pacienteId) {
-      setAnalyzeError("Selecciona un paciente primero.");
-      return;
-    }
-
-    const contexto = [
-      soap.subjetivo.trim(),
-      soap.objetivo.trim(),
-      globalTranscript.trim(),
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-
-    if (!contexto && photos.length === 0) {
-      setAnalyzeError(
-        "Agrega al menos una foto, dicta algo, o escribe en Subjetivo/Objetivo.",
-      );
-      return;
-    }
-
-    setIsAnalyzing(true);
-    try {
-      const res = await fetch("/api/ia/analizar-caso", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paciente_id: pacienteId,
-          motivo: motivo || undefined,
-          contexto,
-          fotos: photos.map((p) => ({
-            storage_path: p.storage_path,
-            tipo: p.tipo,
-            zona_anatomica: p.zona_anatomica ?? null,
-          })),
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setAnalyzeError(
-          body.error ?? "No pudimos analizar el caso. Reintenta.",
-        );
-        return;
-      }
-      const data = (await res.json()) as AnalizarCasoResponse;
-      setAnalizar(data);
-      if (data.error && data.error_message) {
-        setAnalyzeError(data.error_message);
-      }
-    } catch {
-      setAnalyzeError("Error de red al hablar con la IA. Reintenta.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, [pacienteId, motivo, soap.subjetivo, soap.objetivo, globalTranscript, photos]);
-
   // ----- Save ---------------------------------------------------------
 
   const handleSave = useCallback(
@@ -364,20 +294,6 @@ export function NuevaConsultaForm({
         analisis: soap.analisis,
         plan: soap.plan,
         transcripcion_raw: globalTranscript,
-        analisis_ia: analizar && !analizar.error
-          ? {
-              lectura_imagen: analizar.lectura_imagen,
-              hallazgos_relevantes: analizar.hallazgos_relevantes,
-              diferenciales: analizar.diferenciales,
-              plan_diagnostico: analizar.plan_diagnostico,
-              plan_terapeutico: analizar.plan_terapeutico,
-              educacion_paciente: analizar.educacion_paciente,
-              seguimiento: analizar.seguimiento,
-              banderas_rojas: analizar.banderas_rojas,
-              derivacion_sugerida: analizar.derivacion_sugerida,
-              image_quality: analizar.image_quality,
-            }
-          : null,
         fotos: photos.map((p) => ({
           storage_path: p.storage_path,
           tipo: p.tipo,
@@ -393,7 +309,7 @@ export function NuevaConsultaForm({
       }
       router.push(`/consulta/${result.consultaId}`);
     },
-    [pacienteId, motivo, soap, globalTranscript, photos, analizar, router],
+    [pacienteId, motivo, soap, globalTranscript, photos, router],
   );
 
   // ----- Render -------------------------------------------------------
@@ -555,33 +471,11 @@ export function NuevaConsultaForm({
         />
       </section>
 
-      <section className="mt-6">
-        <div className="rounded-lg border-2 border-neutral-900 bg-neutral-900 p-4 text-white">
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
-            Análisis con IA
-          </p>
-          <p className="mt-1 text-sm text-neutral-200">
-            Lectura de imagen + contexto del paciente → diferenciales, plan
-            sugerido y banderas rojas. El resultado aparece abajo como
-            sugerencia. <strong>No reemplaza tu criterio.</strong>
-          </p>
-          <Button
-            type="button"
-            size="lg"
-            onClick={handleAnalizar}
-            disabled={isAnalyzing}
-            className="mt-3 h-12 w-full bg-white text-base text-neutral-900 hover:bg-neutral-100"
-          >
-            {isAnalyzing ? "Analizando…" : "🔍 Analizar caso con IA"}
-          </Button>
-          {analyzeError && (
-            <p className="mt-2 text-xs text-red-300" role="alert">
-              {analyzeError}
-            </p>
-          )}
-        </div>
-
-        {analizar && <AnalisisIaPanel data={analizar} />}
+      <section className="mt-6 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-600">
+        Después de guardar esta consulta, en la vista de detalle vas a
+        poder consultar a la IA en sus 6 modos clínicos (Caso Clínico,
+        Express, Bibliografía, Histopatología, Terapéutica, Docente)
+        con la imagen y el contexto que acabas de capturar.
       </section>
 
       {serverState.error && (
