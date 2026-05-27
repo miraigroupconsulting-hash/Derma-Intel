@@ -7,65 +7,67 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { PendingRecipesPill } from "@/components/pending-recipes-pill";
+import { NotificationBell } from "@/components/notification-bell";
+import { AlertasPanel } from "@/components/alertas-panel";
+import { loadDashboardData } from "@/lib/dashboard-data";
 
-/**
- * Protected dashboard.
- *
- * Middleware already redirects unauthenticated users to /login and
- * users without completed onboarding to /onboarding, but we re-check
- * defensively in case the middleware matcher misses a future route.
- */
 export default async function DashboardPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+  if (!user) redirect("/login");
 
   const { data: medico } = await supabase
     .from("medicos")
     .select("nombre, apellido, especialidad, onboarding_completed")
     .eq("id", user.id)
     .maybeSingle();
+  if (medico && !medico.onboarding_completed) redirect("/onboarding");
 
-  if (medico && !medico.onboarding_completed) {
-    redirect("/onboarding");
-  }
-
-  // Counts to show on the dashboard (RLS-filtered automatically).
   const { count: pacientesCount } = await supabase
     .from("pacientes")
     .select("id", { count: "exact", head: true })
     .eq("archivado", false);
 
+  const { data: ultimosPacientes } = await supabase
+    .from("pacientes")
+    .select("id, nombre, apellido, updated_at")
+    .eq("archivado", false)
+    .order("updated_at", { ascending: false })
+    .limit(5);
+
+  const dashboard = await loadDashboardData(supabase, user.id);
+
   const greetingName = medico?.nombre ? `Dr/a. ${medico.nombre}` : "doctor/a";
+  const hoyTxt = new Date().toLocaleDateString("es-VE", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: dashboard.tz,
+  });
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6">
-      <header className="mb-8 flex items-center justify-between">
+      <header className="mb-6 flex items-center justify-between gap-2">
         <div>
           <p className="text-sm text-neutral-500">DERMA INTEL Pro</p>
           <h1 className="text-2xl font-semibold tracking-tight">
             Hola, {greetingName}
           </h1>
-          {medico?.especialidad && (
-            <p className="mt-1 text-xs text-neutral-500">{medico.especialidad}</p>
-          )}
+          <p className="mt-0.5 text-xs capitalize text-neutral-500">{hoyTxt}</p>
         </div>
         <div className="flex items-center gap-2">
+          <NotificationBell initialUnread={dashboard.unreadCount} />
           <Link
             href="/perfil"
             className={buttonVariants({ variant: "outline", size: "sm" })}
           >
-            Mi perfil
+            ⚙️
           </Link>
           <form action={logout}>
             <Button type="submit" variant="outline" size="sm">
@@ -75,8 +77,45 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <div className="mb-6">
+      <div className="mb-4">
         <PendingRecipesPill />
+      </div>
+
+      <section className="mb-6 rounded-md border border-neutral-200 bg-white p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+          Resumen de hoy
+        </h2>
+        <div className="mt-2 grid grid-cols-3 gap-3 text-center">
+          <div className="rounded-md bg-neutral-50 p-2">
+            <p className="text-2xl font-semibold">{dashboard.summary.citasHoy}</p>
+            <p className="text-[0.7rem] text-neutral-600">📅 citas hoy</p>
+          </div>
+          <div className="rounded-md bg-neutral-50 p-2">
+            <p className="text-2xl font-semibold">
+              {dashboard.summary.controlesPendientes}
+            </p>
+            <p className="text-[0.7rem] text-neutral-600">🔄 controles (7d)</p>
+          </div>
+          <div className="rounded-md bg-neutral-50 p-2">
+            <p className="text-2xl font-semibold">
+              {dashboard.summary.recipesPorVencer}
+            </p>
+            <p className="text-[0.7rem] text-neutral-600">💊 récipes por vencer</p>
+          </div>
+        </div>
+        {dashboard.summary.primerPacienteHoy && (
+          <p className="mt-3 text-sm text-neutral-700">
+            Tu primer recordatorio hoy:{" "}
+            <span className="font-medium">
+              {dashboard.summary.primerPacienteHoy.hora} —{" "}
+              {dashboard.summary.primerPacienteHoy.nombre}
+            </span>
+          </p>
+        )}
+      </section>
+
+      <div className="mb-6">
+        <AlertasPanel alertasTop={dashboard.alertasTop} alertasMas={dashboard.alertasMas} />
       </div>
 
       <Link
@@ -99,36 +138,62 @@ export default async function DashboardPage() {
                 : `${pacientesCount} paciente${pacientesCount === 1 ? "" : "s"} activo${pacientesCount === 1 ? "" : "s"}.`}
             </CardDescription>
           </CardHeader>
-          <CardFooter className="flex flex-col gap-2">
-            <Link
-              href="/pacientes"
-              className={buttonVariants({ size: "default" }) + " w-full"}
-            >
-              Ver lista de pacientes
-            </Link>
-            <Link
-              href="/pacientes/nuevo"
-              className={buttonVariants({ size: "default", variant: "outline" }) + " w-full"}
-            >
-              + Nuevo paciente
-            </Link>
-          </CardFooter>
+          <CardContent className="space-y-2">
+            {ultimosPacientes && ultimosPacientes.length > 0 && (
+              <ul className="space-y-1 text-sm">
+                {ultimosPacientes.map((p) => (
+                  <li key={p.id}>
+                    <Link
+                      href={`/pacientes/${p.id}`}
+                      className="block truncate rounded px-1 py-0.5 hover:bg-neutral-50"
+                    >
+                      {p.apellido}, {p.nombre}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex flex-col gap-2 pt-2">
+              <Link
+                href="/pacientes"
+                className={buttonVariants({ size: "default" }) + " w-full"}
+              >
+                Ver todos
+              </Link>
+              <Link
+                href="/pacientes/nuevo"
+                className={
+                  buttonVariants({ size: "default", variant: "outline" }) +
+                  " w-full"
+                }
+              >
+                + Nuevo paciente
+              </Link>
+            </div>
+          </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Próximamente</CardTitle>
+            <CardTitle className="text-base">Agenda</CardTitle>
+            <CardDescription>
+              Tu calendario semanal de citas y controles.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm text-neutral-600">
-            <p>· Récipes en PDF (Capa 1)</p>
-            <p>· Biblioteca personal + RAG (Capa 2)</p>
-            <p>· Digest semanal de novedades (Capa 3)</p>
+          <CardContent className="space-y-2">
+            <Link
+              href="/agenda"
+              className={buttonVariants({ size: "default" }) + " w-full"}
+            >
+              📅 Ver agenda
+            </Link>
           </CardContent>
         </Card>
       </div>
 
       <p className="mt-8 text-xs text-neutral-500">
-        Sugerencia de apoyo clínico. La decisión y firma corresponden al médico tratante.
+        Sugerencia de apoyo clínico. La decisión y firma corresponden al médico
+        tratante.
       </p>
     </main>
   );

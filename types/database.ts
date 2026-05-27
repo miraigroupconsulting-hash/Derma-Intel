@@ -397,6 +397,7 @@ export type Database = {
           telefono: string | null
           tier_suscripcion: string
           updated_at: string
+          zona_horaria: string
         }
         Insert: {
           apellido?: string | null
@@ -415,6 +416,7 @@ export type Database = {
           telefono?: string | null
           tier_suscripcion?: string
           updated_at?: string
+          zona_horaria?: string
         }
         Update: {
           apellido?: string | null
@@ -433,8 +435,79 @@ export type Database = {
           telefono?: string | null
           tier_suscripcion?: string
           updated_at?: string
+          zona_horaria?: string
         }
         Relationships: []
+      }
+      notificaciones: {
+        Row: {
+          accion_url: string | null
+          fecha_creacion: string
+          fecha_objetivo: string | null
+          id: string
+          leida: boolean
+          medico_id: string
+          mensaje: string | null
+          paciente_id: string | null
+          prioridad: Database["public"]["Enums"]["notificacion_prioridad"]
+          recordatorio_id: string | null
+          resuelta: boolean
+          tipo: Database["public"]["Enums"]["notificacion_tipo"]
+          titulo: string
+        }
+        Insert: {
+          accion_url?: string | null
+          fecha_creacion?: string
+          fecha_objetivo?: string | null
+          id?: string
+          leida?: boolean
+          medico_id: string
+          mensaje?: string | null
+          paciente_id?: string | null
+          prioridad?: Database["public"]["Enums"]["notificacion_prioridad"]
+          recordatorio_id?: string | null
+          resuelta?: boolean
+          tipo: Database["public"]["Enums"]["notificacion_tipo"]
+          titulo: string
+        }
+        Update: {
+          accion_url?: string | null
+          fecha_creacion?: string
+          fecha_objetivo?: string | null
+          id?: string
+          leida?: boolean
+          medico_id?: string
+          mensaje?: string | null
+          paciente_id?: string | null
+          prioridad?: Database["public"]["Enums"]["notificacion_prioridad"]
+          recordatorio_id?: string | null
+          resuelta?: boolean
+          tipo?: Database["public"]["Enums"]["notificacion_tipo"]
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notificaciones_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notificaciones_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notificaciones_recordatorio_id_fkey"
+            columns: ["recordatorio_id"]
+            isOneToOne: false
+            referencedRelation: "recordatorios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pacientes: {
         Row: {
@@ -576,6 +649,7 @@ export type Database = {
       }
       recordatorios: {
         Row: {
+          auto_generado: boolean
           completado_at: string | null
           consulta_id: string | null
           created_at: string
@@ -585,9 +659,11 @@ export type Database = {
           medico_id: string
           mensaje: string | null
           paciente_id: string
+          prioridad: Database["public"]["Enums"]["recordatorio_prioridad"]
           tipo: Database["public"]["Enums"]["recordatorio_tipo"]
         }
         Insert: {
+          auto_generado?: boolean
           completado_at?: string | null
           consulta_id?: string | null
           created_at?: string
@@ -597,9 +673,11 @@ export type Database = {
           medico_id: string
           mensaje?: string | null
           paciente_id: string
+          prioridad?: Database["public"]["Enums"]["recordatorio_prioridad"]
           tipo: Database["public"]["Enums"]["recordatorio_tipo"]
         }
         Update: {
+          auto_generado?: boolean
           completado_at?: string | null
           consulta_id?: string | null
           created_at?: string
@@ -609,6 +687,7 @@ export type Database = {
           medico_id?: string
           mensaje?: string | null
           paciente_id?: string
+          prioridad?: Database["public"]["Enums"]["recordatorio_prioridad"]
           tipo?: Database["public"]["Enums"]["recordatorio_tipo"]
         }
         Relationships: [
@@ -710,7 +789,10 @@ export type Database = {
         | "histopatologia"
         | "terapeutica"
         | "docente"
+      notificacion_prioridad: "baja" | "media" | "alta"
+      notificacion_tipo: "recordatorio" | "alerta" | "sistema"
       recordatorio_estado: "pendiente" | "completado" | "cancelado"
+      recordatorio_prioridad: "baja" | "media" | "alta"
       recordatorio_tipo:
         | "control"
         | "seguimiento"
@@ -858,7 +940,10 @@ export const Constants = {
         "terapeutica",
         "docente",
       ],
+      notificacion_prioridad: ["baja", "media", "alta"],
+      notificacion_tipo: ["recordatorio", "alerta", "sistema"],
       recordatorio_estado: ["pendiente", "completado", "cancelado"],
+      recordatorio_prioridad: ["baja", "media", "alta"],
       recordatorio_tipo: [
         "control",
         "seguimiento",

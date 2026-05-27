@@ -18,6 +18,7 @@ import { IaPanel } from "./ia-panel";
 import { SavedIaSessions } from "./saved-ia-sessions";
 import { RecipeRow } from "./recipe-row";
 import { parseRevisiones } from "./recipe/revisiones";
+import { ProgramarControl } from "./programar-control/programar-control";
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
 
@@ -248,6 +249,21 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
               </ul>
             </CardContent>
           </Card>
+        )}
+
+        {paciente && (
+          <ProgramarControl
+            consultaId={consulta.id}
+            pacienteId={paciente.id}
+            planTexto={
+              [
+                consulta.plan_terapeutico,
+                consulta.diagnostico_diferencial,
+              ]
+                .filter(Boolean)
+                .join("\n\n") || ""
+            }
+          />
         )}
 
         {analisisIa && <AnalisisIaPanel data={analisisIa} />}
