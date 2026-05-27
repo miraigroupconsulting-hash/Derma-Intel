@@ -165,6 +165,14 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
             >
               📄 Récipe
             </Link>
+            {consulta.estado === "completada" && (
+              <Link
+                href={`/consulta/${consulta.id}/informe`}
+                className={buttonVariants({ size: "sm", variant: "outline" })}
+              >
+                📋 Informe médico
+              </Link>
+            )}
             <Link
               href={`/consulta/nueva?paciente=${paciente?.id ?? ""}`}
               className={buttonVariants({ variant: "outline", size: "sm" })}

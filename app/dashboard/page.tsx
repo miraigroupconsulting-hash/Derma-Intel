@@ -122,15 +122,26 @@ export default async function DashboardPage() {
         <AlertasPanel alertasTop={dashboard.alertasTop} alertasMas={dashboard.alertasMas} />
       </div>
 
-      <Link
-        href="/consulta/nueva"
-        className={
-          buttonVariants({ size: "lg" }) +
-          " mb-6 flex h-14 w-full items-center justify-center text-base"
-        }
-      >
-        🎤 Nueva consulta
-      </Link>
+      <div className="mb-6 grid gap-3 sm:grid-cols-[2fr_1fr]">
+        <Link
+          href="/consulta/nueva"
+          className={
+            buttonVariants({ size: "lg" }) +
+            " flex h-14 items-center justify-center text-base"
+          }
+        >
+          🎤 Nueva consulta
+        </Link>
+        <Link
+          href="/consulta-rapida"
+          className={
+            buttonVariants({ size: "lg", variant: "outline" }) +
+            " flex h-14 items-center justify-center text-base"
+          }
+        >
+          ⚡ Consulta rápida
+        </Link>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>

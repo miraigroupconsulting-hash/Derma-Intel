@@ -379,6 +379,64 @@ export type Database = {
           },
         ]
       }
+      informes: {
+        Row: {
+          consulta_id: string
+          created_at: string
+          fecha: string
+          id: string
+          medico_id: string
+          paciente_id: string
+          pdf_storage_path: string | null
+          redactado_con_ia: boolean
+          updated_at: string
+        }
+        Insert: {
+          consulta_id: string
+          created_at?: string
+          fecha?: string
+          id?: string
+          medico_id: string
+          paciente_id: string
+          pdf_storage_path?: string | null
+          redactado_con_ia?: boolean
+          updated_at?: string
+        }
+        Update: {
+          consulta_id?: string
+          created_at?: string
+          fecha?: string
+          id?: string
+          medico_id?: string
+          paciente_id?: string
+          pdf_storage_path?: string | null
+          redactado_con_ia?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "informes_consulta_id_fkey"
+            columns: ["consulta_id"]
+            isOneToOne: false
+            referencedRelation: "consultas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "informes_medico_id_fkey"
+            columns: ["medico_id"]
+            isOneToOne: false
+            referencedRelation: "medicos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "informes_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       medicos: {
         Row: {
           apellido: string | null
