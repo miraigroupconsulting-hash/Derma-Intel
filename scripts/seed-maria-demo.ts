@@ -187,22 +187,29 @@ async function upsertSeed() {
   // Idempotente: dedup por (paciente_id, tipo, fecha::date).
   const en12h = new Date();
   en12h.setUTCHours(en12h.getUTCHours() + 12);
-  const { error: recErr } = await supabase
+
+  // El unique index es sobre (paciente_id, tipo, fecha_objetivo::date)
+  // partial WHERE estado='pendiente' — Supabase no soporta partial-
+  // index onConflict, así que primero borramos cualquier dupe pendiente
+  // del seed previo y después insertamos limpio.
+  await supabase
     .from("recordatorios")
-    .upsert(
-      {
-        paciente_id: pacienteId,
-        medico_id: medico.id,
-        tipo: "control",
-        prioridad: "alta",
-        auto_generado: false,
-        fecha_objetivo: en12h.toISOString(),
-        mensaje:
-          "Control de evolución de rosácea. Evaluar respuesta a metronidazol.",
-      },
-      { onConflict: "paciente_id,tipo" } as never,
-    );
-  if (recErr && recErr.code !== "23505") {
+    .delete()
+    .eq("paciente_id", pacienteId)
+    .eq("tipo", "control")
+    .eq("estado", "pendiente");
+
+  const { error: recErr } = await supabase.from("recordatorios").insert({
+    paciente_id: pacienteId,
+    medico_id: medico.id,
+    tipo: "control",
+    prioridad: "alta",
+    auto_generado: false,
+    fecha_objetivo: en12h.toISOString(),
+    mensaje:
+      "Control de evolución de rosácea. Evaluar respuesta a metronidazol.",
+  });
+  if (recErr) {
     console.warn(`⚠ no se pudo crear recordatorio próximo: ${recErr.message}`);
   } else {
     console.log("✓ Recordatorio próximo creado (en ~12 horas).");

@@ -61,22 +61,31 @@ export async function evaluarAlertasDiarias(): Promise<EvaluarResult> {
     const nombre = r.paciente
       ? `${r.paciente.nombre} ${r.paciente.apellido}`
       : "Paciente";
-    const { error } = await supabase
+
+    // Manual dedup: el unique index sobre (medico_id, recordatorio_id)
+    // es partial (WHERE resuelta=false) y PostgREST no acepta partial
+    // indexes en ON CONFLICT. Hacemos select-then-insert.
+    const { data: yaExiste } = await supabase
       .from("notificaciones")
-      .upsert(
-        {
-          medico_id: r.medico_id,
-          paciente_id: r.paciente_id,
-          recordatorio_id: r.id,
-          tipo: "recordatorio",
-          prioridad: r.prioridad,
-          titulo: `Control próximo: ${nombre}`,
-          mensaje: r.mensaje ?? "Recordatorio programado para hoy/mañana.",
-          accion_url: `/pacientes/${r.paciente_id}`,
-          fecha_objetivo: r.fecha_objetivo,
-        },
-        { onConflict: "medico_id,recordatorio_id" },
-      );
+      .select("id")
+      .eq("medico_id", r.medico_id)
+      .eq("recordatorio_id", r.id)
+      .eq("resuelta", false)
+      .limit(1)
+      .maybeSingle();
+    if (yaExiste) continue;
+
+    const { error } = await supabase.from("notificaciones").insert({
+      medico_id: r.medico_id,
+      paciente_id: r.paciente_id,
+      recordatorio_id: r.id,
+      tipo: "recordatorio",
+      prioridad: r.prioridad,
+      titulo: `Control próximo: ${nombre}`,
+      mensaje: r.mensaje ?? "Recordatorio programado para hoy/mañana.",
+      accion_url: `/pacientes/${r.paciente_id}`,
+      fecha_objetivo: r.fecha_objetivo,
+    });
     if (error) result.errors.push(`rec ${r.id}: ${error.message}`);
     else result.notificacionesCreated++;
   }
