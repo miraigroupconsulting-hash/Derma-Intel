@@ -265,7 +265,12 @@ export default async function PacientePage({ params }: PageProps) {
               <CardTitle className="text-base">Notas del médico</CardTitle>
             </CardHeader>
             <CardContent className="text-sm whitespace-pre-wrap">
-              {paciente.notas}
+              {/* Strip seed marker if present — internal identifier
+                  used by scripts/seed-demo-patients.ts, never shown
+                  to the médica. */}
+              {paciente.notas
+                .replace(/\s*\[MIRAI_DEMO_SEED_v1\]\s*/g, "")
+                .trim()}
             </CardContent>
           </Card>
         )}

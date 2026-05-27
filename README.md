@@ -1,36 +1,113 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DERMA INTEL Pro
 
-## Getting Started
+Asistente clínica con IA para dermatólogos en LATAM. Producto de [Mirai Lab](https://mirailab.lat).
 
-First, run the development server:
+> La IA sugiere. El médico decide. La app ejecuta lo administrativo.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Stack
+
+- **Next.js 15.5** App Router + Turbopack dev / webpack build
+- **React 19** Server Components + Server Actions
+- **TypeScript** strict (`noUncheckedIndexedAccess`)
+- **Tailwind CSS 4** con `@theme inline` y design tokens en `globals.css`
+- **shadcn/ui** sobre Base UI (no Radix)
+- **Supabase** Postgres + Auth + Storage + RLS por `medico_id = auth.uid()`
+- **Anthropic SDK** — Sonnet 4.6 (clinical) + Haiku 4.5 (parsing)
+- **@react-pdf/renderer** generación de récipes client-side
+- **@mediapipe/tasks-vision** detección facial lazy para modo anónimo
+- **idb** IndexedDB para outbox offline + cache de pacientes
+- **@ducanh2912/next-pwa** Service Worker
+- **next-themes** modo claro/oscuro
+- **react-compare-slider** comparación de fotos antes/después
+
+## Estructura
+
+Ver [`CLAUDE.md §5`](./CLAUDE.md) para el detalle completo. Resumen:
+
+```
+app/
+  (auth)/        landing, login, signup
+  about/         carta del fundador + changelog
+  agenda/        calendario semanal de citas y controles
+  api/
+    cron/        Vercel Cron endpoints
+    ia/          6 modos clínicos + parsers Haiku
+  bienvenida/    página de entrega (no enlazada)
+  consulta/      flujo SOAP + récipes + IA
+  dashboard/     home con alertas + resumen + KPIs
+  onboarding/    bienvenida + skip
+  pacientes/     CRUD + ficha + evolución de fotos
+  perfil/        configuración del médico
+
+components/      UI compuesta (logo, alertas, notificación bell, etc.)
+lib/             helpers (supabase, claude, voice, anonimizar, fotos, recordatorios, etc.)
+scripts/         seeds + checks contra producción
+supabase/        migrations versionadas
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup local
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+cp .env.example .env.local
+# rellena las 5 keys: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+# SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, CRON_SECRET
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Abre [http://localhost:3000](http://localhost:3000).
 
-## Learn More
+## Scripts útiles
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+# Verificar tipos
+npx tsc --noEmit
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Build de producción
+npx next build
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Tests
+npx vitest run
 
-## Deploy on Vercel
+# Lint
+npx next lint
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Regenerar tipos TS desde el schema real
+npx supabase gen types typescript --linked > types/database.ts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Aplicar migraciones pendientes a producción
+npx supabase db push --include-all
+
+# Sembrar pacientes demo (idempotente)
+MEDICO_EMAIL=tu@email.com npx tsx scripts/seed-demo-patients.ts
+
+# Borrar pacientes demo (solo los seed-marked, NO toca datos reales)
+MEDICO_EMAIL=tu@email.com npx tsx scripts/seed-demo-patients.ts --delete
+```
+
+## Documentación interna
+
+- [`CLAUDE.md`](./CLAUDE.md) — Contrato del proyecto: visión, constraints éticos, stack, UX
+- [`docs/runbook.md`](./docs/runbook.md) — Operaciones: env vars, crons, scripts, errores comunes
+- [`docs/guion-entrega-dia-10.md`](./docs/guion-entrega-dia-10.md) — Guion personal del momento del regalo
+- [`prompts/derma-intel-v2.md`](./prompts/derma-intel-v2.md) — Cerebro clínico (6 modos)
+
+## Deploy
+
+Auto-deploy en cada push a `main` vía Vercel. URL producción: https://derma-intel.vercel.app.
+
+Variables de entorno en Vercel (Settings → Environment Variables): mismas 5 del `.env.local`.
+
+## Constraints éticos (no negociables)
+
+Ver [`CLAUDE.md §2`](./CLAUDE.md). Resumen:
+
+- ❌ La app NUNCA firma récipes automáticamente
+- ❌ Sustancias controladas exigen doble confirmación (input "CONFIRMO")
+- ❌ PII del paciente nunca va a Anthropic sin anonimizar
+- ❌ EXIF de fotos se strip antes de subir
+- ✅ Disclaimer "Sugerencia de apoyo clínico. La decisión y firma corresponden al médico tratante." en cada output IA
+
+## Licencia y propiedad
+
+Proyecto interno de Mirai Lab. No abierto al público. © 2026.
