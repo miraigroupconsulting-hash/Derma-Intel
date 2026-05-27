@@ -13,6 +13,8 @@ import {
 import { PendingRecipesPill } from "@/components/pending-recipes-pill";
 import { NotificationBell } from "@/components/notification-bell";
 import { AlertasPanel } from "@/components/alertas-panel";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { LogoLockup } from "@/components/logo";
 import { loadDashboardData } from "@/lib/dashboard-data";
 
 export default async function DashboardPage() {
@@ -53,21 +55,23 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6">
-      <header className="mb-6 flex items-center justify-between gap-2">
+      <header className="mb-6 flex items-start justify-between gap-2">
         <div>
-          <p className="text-sm text-neutral-500">DERMA INTEL Pro</p>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <LogoLockup size="sm" className="mb-2" />
+          <h1 className="font-display text-2xl tracking-tight text-brand-ink dark:text-brand-cream">
             Hola, {greetingName}
           </h1>
-          <p className="mt-0.5 text-xs capitalize text-neutral-500">{hoyTxt}</p>
+          <p className="mt-0.5 text-xs capitalize text-brand-gray">{hoyTxt}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <NotificationBell initialUnread={dashboard.unreadCount} />
+          <ThemeToggle />
           <Link
             href="/perfil"
             className={buttonVariants({ variant: "outline", size: "sm" })}
+            aria-label="Mi perfil"
           >
-            ⚙️
+            ⚙
           </Link>
           <form action={logout}>
             <Button type="submit" variant="outline" size="sm">
@@ -191,9 +195,14 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <p className="mt-8 text-xs text-neutral-500">
+      <p className="mt-8 text-xs text-brand-gray">
         Sugerencia de apoyo clínico. La decisión y firma corresponden al médico
         tratante.
+      </p>
+      <p className="mt-2 text-center text-xs text-brand-gray">
+        <Link href="/about" className="underline-offset-4 hover:underline">
+          Acerca de DERMA INTEL Pro
+        </Link>
       </p>
     </main>
   );

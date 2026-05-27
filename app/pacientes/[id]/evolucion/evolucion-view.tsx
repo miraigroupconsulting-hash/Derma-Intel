@@ -511,7 +511,7 @@ function FotoCard({
       onTouchCancel={handlePressEnd}
       onContextMenu={handleContextMenu}
       className={
-        "group relative aspect-square overflow-hidden rounded-md border-2 transition " +
+        "clinical-photo group relative aspect-square overflow-hidden rounded-md border-2 transition " +
         (selected
           ? "border-emerald-600 ring-2 ring-emerald-600/30"
           : "border-neutral-200 hover:border-neutral-400")

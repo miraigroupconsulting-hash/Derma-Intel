@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="256" height="256">
+  <!-- Option A: Lente dermatoscópica con línea de lectura diagonal.
+       Más abstracto/elegante. Los dos círculos concéntricos = la
+       óptica del dermatoscopio. La diagonal en color acento = el
+       gesto de "leer" la piel. -->
+  <circle cx="32" cy="32" r="26" fill="none" stroke="#1B4965" stroke-width="3.5"/>
+  <circle cx="32" cy="32" r="14" fill="none" stroke="#1B4965" stroke-width="2.5"/>
+  <line x1="20" y1="44" x2="44" y2="20" stroke="#5FA8D3" stroke-width="2.8" stroke-linecap="round"/>
+</svg>

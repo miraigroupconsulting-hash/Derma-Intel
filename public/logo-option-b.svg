@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="256" height="256">
+  <!-- Option B: Lente con crosshair y target dot.
+       Más clínico/preciso. El crosshair sugiere medición/precisión
+       (instrumental médico real); el dot central en color acento es
+       el "punto de análisis" — la lesión bajo observación. -->
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#1B4965" stroke-width="3.8"/>
+  <!-- Crosshair: 4 segmentos cortos, no llegan al centro -->
+  <line x1="32" y1="14" x2="32" y2="22" stroke="#1B4965" stroke-width="2.4" stroke-linecap="round"/>
+  <line x1="32" y1="42" x2="32" y2="50" stroke="#1B4965" stroke-width="2.4" stroke-linecap="round"/>
+  <line x1="14" y1="32" x2="22" y2="32" stroke="#1B4965" stroke-width="2.4" stroke-linecap="round"/>
+  <line x1="42" y1="32" x2="50" y2="32" stroke="#1B4965" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- Punto central de análisis -->
+  <circle cx="32" cy="32" r="3.5" fill="#5FA8D3"/>
+</svg>

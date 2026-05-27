@@ -5,6 +5,28 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { onboardingSchema } from "./schema";
 
+/**
+ * Trap 5 mitigation: la médica puede saltarse el onboarding y entrar
+ * directo al dashboard. Marcamos onboarding_completed=true con datos
+ * mínimos para que el middleware no la rebote al volver. Si quiere
+ * completar después, lo hace desde /perfil.
+ */
+export async function skipOnboarding(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  await supabase
+    .from("medicos")
+    .update({ onboarding_completed: true })
+    .eq("id", user.id);
+
+  revalidatePath("/", "layout");
+  redirect("/dashboard");
+}
+
 export interface OnboardingActionState {
   error: string | null;
   fieldErrors?: Partial<Record<keyof ReturnType<typeof onboardingSchema.parse>, string>>;

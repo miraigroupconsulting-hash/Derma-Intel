@@ -670,7 +670,10 @@ export function RecipeForm({
 
         {signedUrl && (
           <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900 space-y-2">
-            <p>✓ Récipe firmado y guardado.</p>
+            <p>
+              <span className="font-medium">✓ Récipe firmado.</span> Listo para
+              descargar o enviar al paciente.
+            </p>
             <div className="flex flex-wrap gap-2">
               <a
                 href={signedUrl}

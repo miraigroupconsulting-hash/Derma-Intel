@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>DERMA INTEL Pro — Logo options</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #FAF7F2; color: #1A1A2E; }
+  h1 { font-size: 18px; margin: 0 0 24px; font-weight: 600; color: #1B4965; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 1100px; margin: 0 auto; }
+  .card { background: white; border: 1px solid #e5e5e5; border-radius: 12px; padding: 24px; }
+  .card.dark { background: #0F1419; color: #E8E9EA; }
+  .card h2 { font-size: 14px; font-weight: 600; margin: 0 0 16px; letter-spacing: 0.5px; text-transform: uppercase; color: #8C9097; }
+  .row { display: flex; align-items: center; gap: 24px; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #eee; }
+  .row:last-of-type { border: none; padding-bottom: 0; margin-bottom: 0; }
+  .label { font-size: 12px; color: #8C9097; text-transform: uppercase; letter-spacing: 0.5px; width: 80px; flex-shrink: 0; }
+  .sizes { display: flex; align-items: center; gap: 24px; }
+  .lockup { display: flex; align-items: center; gap: 12px; }
+  .wordmark { font-family: Georgia, serif; font-size: 28px; font-weight: 600; color: #1B4965; letter-spacing: -0.5px; }
+  .wordmark sup { font-size: 14px; color: #5FA8D3; margin-left: 4px; vertical-align: super; font-weight: 400; }
+  .card.dark .wordmark { color: #E8E9EA; }
+  .card.dark .wordmark sup { color: #5FA8D3; }
+  .desc { font-size: 13px; color: #525252; margin: 16px 0 0; line-height: 1.5; }
+  .card.dark .desc { color: #9BA0A6; }
+  img.favicon { width: 32px; height: 32px; }
+  img.medium { width: 64px; height: 64px; }
+  img.large { width: 128px; height: 128px; }
+</style>
+</head>
+<body>
+  <h1>DERMA INTEL Pro — Selecciona logo</h1>
+  <div class="grid">
+
+    <!-- ============ OPTION A ============ -->
+    <div class="card">
+      <h2>Opción A — Lente + lectura diagonal</h2>
+      <div class="row">
+        <div class="label">Favicon</div>
+        <div class="sizes">
+          <img src="/logo-option-a.svg" class="favicon" alt="" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">Símbolo</div>
+        <div class="sizes">
+          <img src="/logo-option-a.svg" class="medium" alt="" />
+          <img src="/logo-option-a.svg" class="large" alt="" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">Lockup</div>
+        <div class="lockup">
+          <img src="/logo-option-a.svg" class="medium" alt="" />
+          <div class="wordmark">DERMA INTEL<sup>Pro</sup></div>
+        </div>
+      </div>
+      <p class="desc">
+        Dos círculos concéntricos (la óptica del dermatoscopio) con una
+        línea diagonal en azul claro — el gesto de "leer" la piel. Más
+        abstracto, más elegante, menos clínico-instrumental.
+      </p>
+    </div>
+
+    <div class="card dark">
+      <h2>Opción A — Sobre fondo oscuro</h2>
+      <div class="lockup">
+        <img src="/logo-option-a.svg" class="large" alt="" />
+        <div class="wordmark">DERMA INTEL<sup>Pro</sup></div>
+      </div>
+    </div>
+
+    <!-- ============ OPTION B ============ -->
+    <div class="card">
+      <h2>Opción B — Lente + crosshair + target</h2>
+      <div class="row">
+        <div class="label">Favicon</div>
+        <div class="sizes">
+          <img src="/logo-option-b.svg" class="favicon" alt="" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">Símbolo</div>
+        <div class="sizes">
+          <img src="/logo-option-b.svg" class="medium" alt="" />
+          <img src="/logo-option-b.svg" class="large" alt="" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">Lockup</div>
+        <div class="lockup">
+          <img src="/logo-option-b.svg" class="medium" alt="" />
+          <div class="wordmark">DERMA INTEL<sup>Pro</sup></div>
+        </div>
+      </div>
+      <p class="desc">
+        Anillo único (lente) con crosshair de 4 segmentos cortos y un
+        punto central en azul claro — la "lesión bajo observación".
+        Más clínico, más instrumental, más cercano al diseño industrial
+        médico.
+      </p>
+    </div>
+
+    <div class="card dark">
+      <h2>Opción B — Sobre fondo oscuro</h2>
+      <div class="lockup">
+        <img src="/logo-option-b.svg" class="large" alt="" />
+        <div class="wordmark">DERMA INTEL<sup>Pro</sup></div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

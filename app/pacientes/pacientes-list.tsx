@@ -99,9 +99,11 @@ export function PacientesList({ pacientes }: { pacientes: PacienteRow[] }) {
 function EmptyState() {
   return (
     <div className="rounded-md border border-dashed border-neutral-300 px-4 py-12 text-center">
-      <p className="text-sm font-medium text-neutral-900">Aún no tienes pacientes.</p>
+      <p className="text-sm font-medium text-neutral-900">
+        Aún no ha registrado pacientes.
+      </p>
       <p className="mt-1 text-sm text-neutral-500">
-        Crea tu primer paciente con el botón <span className="font-mono">+ Nuevo paciente</span> arriba.
+        Cuando agregue el primero, aparecerá aquí su historia clínica completa.
       </p>
     </div>
   );

@@ -177,7 +177,7 @@ export function CompararView({
   return (
     <div className="space-y-5">
       {/* Slider */}
-      <div ref={sliderRef} className="overflow-hidden rounded-lg bg-black shadow-md">
+      <div ref={sliderRef} className="clinical-photo overflow-hidden rounded-lg bg-black shadow-md">
         {antes.signedUrl && despues.signedUrl ? (
           <ReactCompareSlider
             itemOne={
