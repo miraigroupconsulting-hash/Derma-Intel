@@ -18,7 +18,7 @@ import { useOnlineStatus } from "@/lib/use-online-status";
  */
 export function PendingRecipesPill() {
   const router = useRouter();
-  const online = useOnlineStatus();
+  const { online } = useOnlineStatus();
   const [count, setCount] = useState<number>(0);
   const [lastError, setLastError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
