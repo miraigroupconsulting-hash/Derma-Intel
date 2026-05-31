@@ -3,65 +3,66 @@
 import { useEffect, useState } from "react";
 
 /**
- * Reactive online/offline state que NO confía ciegamente en
- * `navigator.onLine`.
+ * Reactive online/offline state robusto en Android/iOS mobile.
  *
- * Por qué: en Android Chrome con VPN, y en algunos PWA modes,
- * navigator.onLine reporta false con conexión real. Esto causa que:
- *   1. El banner ámbar "Sin conexión" aparezca cuando no debe
- *   2. PEOR: algunos browsers REHÚSAN mandar fetches mientras
- *      navigator.onLine es false → la médica no puede usar la IA
- *      aunque tenga señal completa.
+ * Por qué no confiar en navigator.onLine:
+ *   1. En Android Chrome con VPN, reporta false con conexión real
+ *      durante minutos tras cambios de red.
+ *   2. PEOR: cuando navigator.onLine es false, el browser REHÚSA
+ *      mandar fetches (incluyendo un HEAD a /api/ping). Por eso un
+ *      fix basado en fetch no rompe el círculo.
  *
- * Estrategia híbrida:
- *   - Inicio: trust navigator.onLine como hint
- *   - On mount: si dice offline, verificar con un ping real
- *   - On 'offline' event: verificar con ping antes de mostrar banner
- *     (delay 1s para evitar carrera con eventos de red)
- *   - On 'online' event: trust inmediato + cancelar verificaciones
- *   - verifyConnection: función pública que cualquier componente
- *     puede invocar (ej. desde un botón "Verificar conexión")
+ * Por qué Image ping funciona:
+ *   Los browsers SIEMPRE permiten cargar <img>, incluso cuando
+ *   navigator.onLine es false. Es una técnica de SRE de la era
+ *   pre-fetch para verificar conectividad real.
  *
- * El ping va a /api/ping (edge function, sin auth, sin cache). Se
- * usa HEAD para minimizar bandwidth.
+ * Estrategia:
+ *   - Default: online=true (no confiamos en navigator.onLine inicial)
+ *   - Si dispara evento 'offline': esperamos 2s y hacemos image ping
+ *     a /favicon.svg con cache-buster. Si la imagen carga, ignoramos
+ *     el evento (era falso positivo). Si falla, mostramos banner.
+ *   - Si dispara evento 'online': trust inmediato, online=true
+ *   - verify() expuesto para verificación manual desde el banner
  */
 export function useOnlineStatus(): {
   online: boolean;
   verify: () => Promise<boolean>;
 } {
-  const [online, setOnline] = useState<boolean>(() => {
-    if (typeof navigator === "undefined") return true;
-    return navigator.onLine;
-  });
+  const [online, setOnline] = useState<boolean>(true);
 
   useEffect(() => {
     let cancelled = false;
 
-    const ping = async (): Promise<boolean> => {
-      try {
-        // AbortController para no quedarnos colgados si el browser
-        // realmente está offline y la promesa no resuelve.
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 5000);
-        const res = await fetch("/api/ping", {
-          method: "HEAD",
-          cache: "no-store",
-          signal: ctrl.signal,
-        });
-        clearTimeout(timer);
-        return res.ok;
-      } catch {
-        return false;
-      }
-    };
+    const imagePing = (): Promise<boolean> =>
+      new Promise((resolve) => {
+        const img = new Image();
+        const timer = setTimeout(() => {
+          img.onload = null;
+          img.onerror = null;
+          resolve(false);
+        }, 8000);
+        img.onload = () => {
+          clearTimeout(timer);
+          resolve(true);
+        };
+        img.onerror = () => {
+          clearTimeout(timer);
+          resolve(false);
+        };
+        // Cache-buster + recurso pequeño que sabemos que existe
+        img.src = `/favicon.svg?_=${Date.now()}`;
+      });
 
-    const verifyAndSet = async () => {
-      const ok = await ping();
+    const verifyAndSet = async (): Promise<boolean> => {
+      const ok = await imagePing();
       if (!cancelled) setOnline(ok);
+      return ok;
     };
 
-    // En mount: si navigator dice offline, NO confiar — verificar.
-    if (!navigator.onLine) {
+    // En mount: si navigator dice offline, NO confiamos — verificamos
+    // con imagen. Si dice online, trust por default.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
       void verifyAndSet();
     }
 
@@ -69,11 +70,11 @@ export function useOnlineStatus(): {
       if (!cancelled) setOnline(true);
     };
     const handleOffline = () => {
-      // Esperar 1s y verificar — el evento 'offline' puede ser
-      // transitorio o falso.
+      // Esperar 2s y verificar. El evento 'offline' es muchas veces
+      // un falso positivo durante reconexión de VPN.
       setTimeout(() => {
         if (!cancelled) void verifyAndSet();
-      }, 1000);
+      }, 2000);
     };
 
     window.addEventListener("online", handleOnline);
@@ -87,27 +88,30 @@ export function useOnlineStatus(): {
   }, []);
 
   /**
-   * Verificación manual. Útil para botones "Verificar conexión" en
-   * la UI del banner offline. Devuelve true si la red está REALMENTE
-   * disponible (server responde al ping).
+   * Verificación manual. Usado por el botón "Verificar conexión" del
+   * banner offline. Dispara un image ping y actualiza el estado.
    */
   const verify = async (): Promise<boolean> => {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 5000);
-      const res = await fetch("/api/ping", {
-        method: "HEAD",
-        cache: "no-store",
-        signal: ctrl.signal,
-      });
-      clearTimeout(timer);
-      const ok = res.ok;
-      setOnline(ok);
-      return ok;
-    } catch {
-      setOnline(false);
-      return false;
-    }
+    return new Promise<boolean>((resolve) => {
+      const img = new Image();
+      const timer = setTimeout(() => {
+        img.onload = null;
+        img.onerror = null;
+        setOnline(false);
+        resolve(false);
+      }, 8000);
+      img.onload = () => {
+        clearTimeout(timer);
+        setOnline(true);
+        resolve(true);
+      };
+      img.onerror = () => {
+        clearTimeout(timer);
+        setOnline(false);
+        resolve(false);
+      };
+      img.src = `/favicon.svg?_=${Date.now()}`;
+    });
   };
 
   return { online, verify };
