@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { CachePacienteOnMount } from "./cache-on-mount";
 import type { CachedPaciente } from "@/lib/offline-db";
+import { SPECIALTY } from "@/config/specialty";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -139,12 +140,14 @@ export default async function PacientePage({ params }: PageProps) {
                 🎤 Nueva consulta
               </Link>
             )}
-            <Link
-              href={`/pacientes/${paciente.id}/evolucion`}
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-            >
-              📷 Evolución
-            </Link>
+            {SPECIALTY.features.fotoEvolucion && (
+              <Link
+                href={`/pacientes/${paciente.id}/evolucion`}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                📷 Evolución
+              </Link>
+            )}
             <Link
               href={`/pacientes/${paciente.id}/editar`}
               className={buttonVariants({ variant: "outline", size: "sm" })}

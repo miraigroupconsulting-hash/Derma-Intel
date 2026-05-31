@@ -16,6 +16,7 @@ import { AlertasPanel } from "@/components/alertas-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LogoLockup } from "@/components/logo";
 import { loadDashboardData } from "@/lib/dashboard-data";
+import { SPECIALTY } from "@/config/specialty";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -122,25 +123,33 @@ export default async function DashboardPage() {
         <AlertasPanel alertasTop={dashboard.alertasTop} alertasMas={dashboard.alertasMas} />
       </div>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-[2fr_1fr]">
+      <div
+        className={
+          SPECIALTY.features.consultaRapida
+            ? "mb-6 grid gap-3 sm:grid-cols-[2fr_1fr]"
+            : "mb-6"
+        }
+      >
         <Link
           href="/consulta/nueva"
           className={
             buttonVariants({ size: "lg" }) +
-            " flex h-14 items-center justify-center text-base"
+            " flex h-14 w-full items-center justify-center text-base"
           }
         >
           🎤 Nueva consulta
         </Link>
-        <Link
-          href="/consulta-rapida"
-          className={
-            buttonVariants({ size: "lg", variant: "outline" }) +
-            " flex h-14 items-center justify-center text-base"
-          }
-        >
-          ⚡ Consulta rápida
-        </Link>
+        {SPECIALTY.features.consultaRapida && (
+          <Link
+            href="/consulta-rapida"
+            className={
+              buttonVariants({ size: "lg", variant: "outline" }) +
+              " flex h-14 items-center justify-center text-base"
+            }
+          >
+            ⚡ Consulta rápida
+          </Link>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

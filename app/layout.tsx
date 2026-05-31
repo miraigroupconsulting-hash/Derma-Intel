@@ -29,9 +29,10 @@ const fraunces = Fraunces({
   axes: ["opsz"],
 });
 
-const APP_NAME = "DERMA INTEL Pro";
-const APP_DESC =
-  "Asistente con IA para dermatólogos. Consulta, historia, récipe y seguimiento en una sola app.";
+import { SPECIALTY } from "@/config/specialty";
+
+const APP_NAME = SPECIALTY.brand.name;
+const APP_DESC = SPECIALTY.brand.description;
 
 export const metadata: Metadata = {
   applicationName: APP_NAME,

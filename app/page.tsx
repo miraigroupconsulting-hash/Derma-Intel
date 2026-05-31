@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { LogoLockup, LogoSymbol } from "@/components/logo";
+import { SPECIALTY } from "@/config/specialty";
 
 export default function LandingPage() {
   return (
@@ -14,7 +15,7 @@ export default function LandingPage() {
           Un producto de Mirai Lab
         </p>
         <h1 className="mb-5 font-display text-4xl leading-[1.1] tracking-tight text-brand-ink dark:text-brand-cream sm:text-5xl">
-          La asistente con IA que el dermatólogo solo nunca tuvo.
+          {SPECIALTY.brand.tagline}
         </h1>
         <p className="mb-10 text-base leading-relaxed text-brand-ink/70 dark:text-brand-cream/70 sm:text-lg">
           Consulta, historia clínica, récipe y seguimiento — en una sola app.

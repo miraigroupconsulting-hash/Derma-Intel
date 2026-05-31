@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState } from "react";
+import { SPECIALTY } from "@/config/specialty";
 
 void pacienteSchema; // ensures the import is preserved for type-checking
 
@@ -122,28 +123,30 @@ export function PacienteForm({
               </SelectContent>
             </Select>
           </Field>
-          <Field
-            id="tipo_piel_fitzpatrick"
-            label="Fototipo Fitzpatrick"
-            error={err("tipo_piel_fitzpatrick")}
-          >
-            <Select
-              value={fitz}
-              onValueChange={handleFitz}
-              name="tipo_piel_fitzpatrick"
+          {SPECIALTY.features.fototipo && (
+            <Field
+              id="tipo_piel_fitzpatrick"
+              label="Fototipo Fitzpatrick"
+              error={err("tipo_piel_fitzpatrick")}
             >
-              <SelectTrigger id="tipo_piel_fitzpatrick">
-                <SelectValue placeholder="—" />
-              </SelectTrigger>
-              <SelectContent>
-                {FITZPATRICK_OPTIONS.map((f) => (
-                  <SelectItem key={f.value} value={String(f.value)}>
-                    {f.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+              <Select
+                value={fitz}
+                onValueChange={handleFitz}
+                name="tipo_piel_fitzpatrick"
+              >
+                <SelectTrigger id="tipo_piel_fitzpatrick">
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FITZPATRICK_OPTIONS.map((f) => (
+                    <SelectItem key={f.value} value={String(f.value)}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

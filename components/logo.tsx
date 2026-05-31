@@ -1,4 +1,18 @@
 import { cn } from "@/lib/utils";
+import { SPECIALTY } from "@/config/specialty";
+
+/**
+ * Wordmark splits: derivamos las dos partes del brand.name a partir
+ * del último token (asumimos formato "<MARCA> <SUFIJO>", ej. "DERMA
+ * INTEL Pro" → "DERMA INTEL" + "Pro"). Si no hay espacio, mostramos
+ * el nombre completo sin sufijo.
+ */
+const FULL_NAME = SPECIALTY.brand.name;
+const LAST_SPACE = FULL_NAME.lastIndexOf(" ");
+const WORD_MAIN =
+  LAST_SPACE > 0 ? FULL_NAME.slice(0, LAST_SPACE) : FULL_NAME;
+const WORD_SUFFIX =
+  LAST_SPACE > 0 ? FULL_NAME.slice(LAST_SPACE + 1) : "";
 
 /**
  * DERMA INTEL Pro brand components. Tres variantes:
@@ -88,16 +102,18 @@ export function LogoLockup({
             WORD_SIZE[size],
           )}
         >
-          DERMA INTEL
+          {WORD_MAIN}
         </span>
-        <span
-          className={cn(
-            "font-display font-normal text-brand-secondary",
-            PRO_SIZE[size],
-          )}
-        >
-          Pro
-        </span>
+        {WORD_SUFFIX && (
+          <span
+            className={cn(
+              "font-display font-normal text-brand-secondary",
+              PRO_SIZE[size],
+            )}
+          >
+            {WORD_SUFFIX}
+          </span>
+        )}
       </div>
     </div>
   );
