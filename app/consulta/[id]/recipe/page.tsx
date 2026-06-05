@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { RecipeForm } from "./recipe-form";
+import { BackLink } from "@/components/back-link";
 import {
   EMPTY_MEDICAMENTO,
   medicamentoSchema,
@@ -177,12 +178,7 @@ export default async function RecipePage({
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 py-6">
       <header className="mb-6">
-        <Link
-          href={`/consulta/${id}`}
-          className="text-xs text-neutral-500 hover:underline"
-        >
-          ← Consulta
-        </Link>
+        <BackLink href={`/consulta/${id}`} label="Consulta" />
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
           {existingRecipe ? "Re-firmar récipe" : "Generar récipe"}
         </h1>

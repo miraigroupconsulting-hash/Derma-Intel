@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button";
 import { PacientesList } from "./pacientes-list";
+import { BackLink } from "@/components/back-link";
 
 export const metadata = {
   title: "Pacientes",
@@ -40,9 +41,7 @@ export default async function PacientesPage({ searchParams }: PageProps) {
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6">
       <header className="mb-6 flex items-center justify-between gap-4">
         <div>
-          <Link href="/dashboard" className="text-xs text-neutral-500 hover:underline">
-            ← Dashboard
-          </Link>
+          <BackLink href="/dashboard" label="Dashboard" />
           <h1 className="text-2xl font-semibold tracking-tight">
             {showArchived ? "Pacientes archivados" : "Pacientes"}
           </h1>

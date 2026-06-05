@@ -25,6 +25,7 @@ import {
 import { EMPTY_SOAP, type SoapData } from "../schema";
 import { saveConsulta, type ConsultaActionState } from "../actions";
 import { PhotoUploader, type ConsultaPhoto } from "./photo-uploader";
+import { BackLink } from "@/components/back-link";
 
 export interface PacienteLite {
   id: string;
@@ -320,16 +321,14 @@ export function NuevaConsultaForm({
       className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col px-4 py-6 pb-28"
     >
       <header className="mb-5 flex items-center justify-between gap-2">
-        <Link
+        <BackLink
           href={
             preselectedPacienteId
               ? `/pacientes/${preselectedPacienteId}`
               : "/dashboard"
           }
-          className="text-xs text-neutral-500 hover:underline"
-        >
-          ← Volver
-        </Link>
+          label="Volver"
+        />
         <div className="flex-1 max-w-sm">
           <Select
             value={pacienteId}
@@ -360,6 +359,18 @@ export function NuevaConsultaForm({
           onChange={(e) => setMotivo(e.target.value)}
           placeholder="Lesión nueva en mejilla, control de acné…"
           maxLength={200}
+        />
+      </section>
+
+      {/* Fotos al tope: la médica las captura ANTES de dictar/escribir
+          el SOAP. Era el orden natural y antes estaban escondidas al
+          final del form (reportado en feedback de uso real). */}
+      <section className="mb-5">
+        <PhotoUploader
+          pacienteFullName={pacienteFullName}
+          photos={photos}
+          onChange={setPhotos}
+          maxPhotos={5}
         />
       </section>
 
@@ -461,15 +472,6 @@ export function NuevaConsultaForm({
           {voiceError}
         </p>
       )}
-
-      <section className="mt-6">
-        <PhotoUploader
-          pacienteFullName={pacienteFullName}
-          photos={photos}
-          onChange={setPhotos}
-          maxPhotos={5}
-        />
-      </section>
 
       <section className="mt-6 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-600">
         Después de guardar esta consulta, en la vista de detalle vas a

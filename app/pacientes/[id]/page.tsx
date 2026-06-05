@@ -16,6 +16,7 @@ import {
 import { CachePacienteOnMount } from "./cache-on-mount";
 import type { CachedPaciente } from "@/lib/offline-db";
 import { SPECIALTY } from "@/config/specialty";
+import { BackLink } from "@/components/back-link";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -108,12 +109,7 @@ export default async function PacientePage({ params }: PageProps) {
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6">
       <CachePacienteOnMount entry={cacheSnapshot} />
       <header className="mb-6">
-        <Link
-          href="/pacientes"
-          className="text-xs text-neutral-500 hover:underline"
-        >
-          ← Pacientes
-        </Link>
+        <BackLink href="/pacientes" label="Pacientes" />
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">

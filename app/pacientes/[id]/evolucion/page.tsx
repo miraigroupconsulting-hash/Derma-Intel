@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { EvolucionView } from "./evolucion-view";
@@ -7,6 +6,7 @@ import type {
   ConsultaGroup,
   FotoEntry,
 } from "./types";
+import { BackLink } from "@/components/back-link";
 
 export const metadata = { title: "Evolución" };
 
@@ -141,12 +141,7 @@ export default async function EvolucionPage({ params }: PageProps) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-4xl flex-col px-4 py-6">
       <header className="mb-6">
-        <Link
-          href={`/pacientes/${id}`}
-          className="text-xs text-neutral-500 hover:underline"
-        >
-          ← {pacienteNombre}
-        </Link>
+        <BackLink href={`/pacientes/${id}`} label={pacienteNombre} />
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
           Evolución
         </h1>

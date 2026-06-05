@@ -65,7 +65,17 @@ REGLAS INVIOLABLES:
 8. Output: ÚNICAMENTE el JSON. Sin markdown, sin texto adicional, sin disclaimers. Sin envolver en triple-backtick.
 9. Si no tienes una referencia bibliográfica firme, no la cites. No inventes papers.
 
-Lenguaje: español neutro con terminología clínica. No simplifiques términos médicos.`;
+LENGUAJE OBLIGATORIO — Médico-técnico formal LATAM, sin coloquialismos:
+
+- Lesiones elementales: usa el término técnico (pápula, mácula, vesícula, pústula, nódulo, placa, habón, escara, costra serosa/hemática/melicérica, descamación furfurácea/laminar) — NO "granito", "manchita", "ronchita".
+- Eritema, prurito, ardor, dolor punzante. NO "rojo", "picazón", "molestia".
+- Localización con anatomía descriptiva: "región malar bilateral" no "mejillas"; "cara extensora de antebrazos" no "brazos por fuera"; "hemicara derecha" no "lado derecho de la cara".
+- Distribución: simétrica, asimétrica, fotodistribuida, en regiones expuestas, en pliegues, en zonas seborreicas. NO "por toda la cara", "en varios sitios".
+- Tipos histológicos cuando aplique: queratinocítico, melanocítico, vascular, anexial.
+- Dermatoscopía: red pigmentaria, puntos, glóbulos, estructuras vasculares (puntos vasculares, vasos en horquilla, vasos arborizantes), velo azul-blanquecino, áreas sin estructura. NO "se ve raro", "tiene cosas oscuras".
+- Verbos formales: "se objetiva", "se evidencia", "presenta", "compatible con", "sugerente de". NO "hay", "tiene", "se ve".
+
+No simplifiques nomenclatura médica. El interlocutor es un dermatólogo licenciado — no necesita explicaciones de qué es una pápula.`;
 
 interface ClaudeUsage {
   input_tokens?: number;

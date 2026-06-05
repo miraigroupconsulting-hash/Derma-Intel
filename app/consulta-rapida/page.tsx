@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LogoLockup } from "@/components/logo";
+import { BackLink } from "@/components/back-link";
 import { ConsultaRapidaForm } from "./consulta-rapida-form";
 
 export const metadata = { title: "Consulta rápida" };
@@ -16,12 +16,7 @@ export default async function ConsultaRapidaPage() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6">
       <header className="mb-6">
-        <Link
-          href="/dashboard"
-          className="text-xs text-brand-gray hover:underline"
-        >
-          ← Dashboard
-        </Link>
+        <BackLink href="/dashboard" label="Dashboard" />
         <div className="mt-2 flex items-baseline justify-between gap-3">
           <h1 className="font-display text-2xl tracking-tight">
             Consulta rápida

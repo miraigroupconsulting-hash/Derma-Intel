@@ -175,25 +175,43 @@ export function ConsultaRapidaForm() {
             ))}
           </ul>
         )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files) void addFiles(e.target.files);
-          }}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={fotos.length >= MAX_FOTOS || loading}
+        {/* Label-wrapping pattern (iOS Safari friendly).
+            display:none / className="hidden" en el input bloquea el
+            file picker en Safari iOS. Patrón correcto: input invisible
+            con opacity:0 dentro de un <label> tappable. */}
+        <label
+          className={
+            "inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground " +
+            (fotos.length >= MAX_FOTOS || loading
+              ? "pointer-events-none opacity-50"
+              : "")
+          }
         >
-          {fotos.length === 0 ? "+ Adjuntar imágenes" : "+ Agregar otra"}
-        </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            multiple
+            disabled={fotos.length >= MAX_FOTOS || loading}
+            style={{
+              position: "absolute",
+              width: 1,
+              height: 1,
+              padding: 0,
+              margin: -1,
+              overflow: "hidden",
+              border: 0,
+              opacity: 0,
+              pointerEvents: "none",
+            }}
+            onChange={(e) => {
+              const list = e.target.files;
+              e.target.value = "";
+              if (list) void addFiles(list);
+            }}
+          />
+          {fotos.length === 0 ? "📷 Adjuntar imágenes" : "+ Agregar otra"}
+        </label>
         <p className="mt-2 text-[0.7rem] text-brand-gray">
           Se comprimen a {MAX_DIMENSION}px y se elimina metadata EXIF antes
           de enviar a la IA. No se guardan en Supabase.

@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { InformeForm } from "./informe-form";
+import { BackLink } from "@/components/back-link";
 
 export const metadata = { title: "Informe médico" };
 
@@ -101,12 +101,7 @@ export default async function InformePage({ params }: PageProps) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 py-6">
       <header className="mb-6">
-        <Link
-          href={`/consulta/${id}`}
-          className="text-xs text-brand-gray hover:underline"
-        >
-          ← Consulta
-        </Link>
+        <BackLink href={`/consulta/${id}`} label="Consulta" />
         <h1 className="mt-2 font-display text-2xl tracking-tight">
           Informe médico
         </h1>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AgendaView } from "./agenda-view";
+import { BackLink } from "@/components/back-link";
 
 export const metadata = { title: "Agenda" };
 
@@ -93,12 +94,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 py-6">
       <header className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <Link
-            href="/dashboard"
-            className="text-xs text-neutral-500 hover:underline"
-          >
-            ← Dashboard
-          </Link>
+          <BackLink href="/dashboard" label="Dashboard" />
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">Agenda</h1>
         </div>
         <div className="flex items-center gap-1 text-sm">

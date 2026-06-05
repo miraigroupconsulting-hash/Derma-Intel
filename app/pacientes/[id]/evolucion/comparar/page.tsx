@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CompararView } from "./comparar-view";
+import { BackLink } from "@/components/back-link";
 
 export const metadata = { title: "Comparar fotos" };
 
@@ -81,12 +81,10 @@ export default async function CompararPage({
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-4xl flex-col px-4 py-6">
       <header className="mb-4">
-        <Link
+        <BackLink
           href={`/pacientes/${pacienteId}/evolucion`}
-          className="text-xs text-neutral-500 hover:underline"
-        >
-          ← Evolución
-        </Link>
+          label="Evolución"
+        />
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
           Comparar fotos
         </h1>

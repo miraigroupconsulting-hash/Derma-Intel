@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PerfilForm } from "./form";
+import { BackLink } from "@/components/back-link";
 
 export const metadata = { title: "Mi perfil" };
 
@@ -40,12 +41,7 @@ export default async function PerfilPage() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col px-4 py-6">
       <header className="mb-6">
-        <Link
-          href="/dashboard"
-          className="text-xs text-neutral-500 hover:underline"
-        >
-          ← Dashboard
-        </Link>
+        <BackLink href="/dashboard" label="Dashboard" />
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
           Mi perfil
         </h1>

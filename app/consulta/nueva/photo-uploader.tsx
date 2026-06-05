@@ -224,33 +224,45 @@ export function PhotoUploader({
         </ul>
       )}
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        multiple
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={(e) => {
-          const files = e.target.files;
-          // Clear the value FIRST so picking the same file again still fires
-          // onChange. Then dispatch the upload async.
-          e.target.value = "";
-          void handleFiles(files);
-        }}
-      />
-
       {photos.length < maxPhotos ? (
-        <Button
-          type="button"
-          variant="outline"
-          disabled={uploading}
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full"
+        /* Label-wrapping pattern: iOS Safari abre el file picker cuando
+           el usuario toca cualquier lado del <label>. NO usamos
+           `sr-only` ni `display:none` en el input porque Safari iOS
+           bloquea el picker programático en esos casos (bug histórico).
+           El input queda invisible pero NO clip-hidden. */
+        <label
+          className={
+            "flex w-full cursor-pointer items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground " +
+            (uploading ? "pointer-events-none opacity-50" : "")
+          }
         >
-          {uploading ? "Procesando…" : `📷 Agregar foto (${maxPhotos - photos.length} restante${maxPhotos - photos.length === 1 ? "" : "s"})`}
-        </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            disabled={uploading}
+            style={{
+              position: "absolute",
+              width: 1,
+              height: 1,
+              padding: 0,
+              margin: -1,
+              overflow: "hidden",
+              border: 0,
+              opacity: 0,
+              pointerEvents: "none",
+            }}
+            onChange={(e) => {
+              const list = e.target.files;
+              e.target.value = "";
+              void handleFiles(list);
+            }}
+          />
+          {uploading
+            ? "Procesando…"
+            : `📷 Agregar foto (${maxPhotos - photos.length} restante${maxPhotos - photos.length === 1 ? "" : "s"})`}
+        </label>
       ) : (
         <p className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-center text-xs text-neutral-600">
           Llegaste al máximo de {maxPhotos} fotos para esta consulta. Quita

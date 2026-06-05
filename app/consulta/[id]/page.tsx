@@ -19,6 +19,7 @@ import { SavedIaSessions } from "./saved-ia-sessions";
 import { RecipeRow } from "./recipe-row";
 import { parseRevisiones } from "./recipe/revisiones";
 import { ProgramarControl } from "./programar-control/programar-control";
+import { BackLink } from "@/components/back-link";
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
 
@@ -138,12 +139,10 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6">
       <header className="mb-6">
-        <Link
+        <BackLink
           href={paciente ? `/pacientes/${paciente.id}` : "/dashboard"}
-          className="text-xs text-neutral-500 hover:underline"
-        >
-          ← {paciente ? `${paciente.apellido}, ${paciente.nombre}` : "Dashboard"}
-        </Link>
+          label={paciente ? `${paciente.apellido}, ${paciente.nombre}` : "Dashboard"}
+        />
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
