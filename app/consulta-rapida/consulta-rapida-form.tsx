@@ -44,7 +44,12 @@ export function ConsultaRapidaForm() {
     const files = Array.from(incoming).slice(0, room);
 
     for (const file of files) {
-      if (!file.type.startsWith("image/")) continue;
+      // iOS a veces entrega archivos con mime vacío desde la Photos
+      // library. Antes saltábamos esos archivos silenciosamente, lo
+      // cual le aparecía a la médica como "no se cargan las imágenes".
+      // Ahora dejamos que removeExif() intente el canvas re-encode
+      // y reporte error específico si el browser no puede decodificar.
+      if (file.type && !file.type.startsWith("image/")) continue;
       try {
         // 1. Strip EXIF + recomprimir a JPEG con maxDimension
         const stripped = await removeExif(file);
@@ -175,34 +180,36 @@ export function ConsultaRapidaForm() {
             ))}
           </ul>
         )}
-        {/* Label-wrapping pattern (iOS Safari friendly).
-            display:none / className="hidden" en el input bloquea el
-            file picker en Safari iOS. Patrón correcto: input invisible
-            con opacity:0 dentro de un <label> tappable. */}
+        {/* Patrón overlay: input file absolutamente posicionado encima
+            del label con opacity 0. El tap físicamente cae sobre el
+            input — sin forwarding ni programmatic .click() que iOS
+            Safari trata con reglas estrictas. */}
         <label
           className={
-            "inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground " +
+            "relative inline-flex items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground " +
             (fotos.length >= MAX_FOTOS || loading
               ? "pointer-events-none opacity-50"
-              : "")
+              : "cursor-pointer")
           }
+          style={{ minHeight: 44 }}
         >
+          {fotos.length === 0 ? "📷 Adjuntar imágenes" : "+ Agregar otra"}
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
+            /* `image/*` para que iOS no filtre HEIC (formato default
+               del iPhone). El procesamiento convierte a JPEG. */
+            accept="image/*"
             multiple
             disabled={fotos.length >= MAX_FOTOS || loading}
             style={{
               position: "absolute",
-              width: 1,
-              height: 1,
-              padding: 0,
-              margin: -1,
-              overflow: "hidden",
-              border: 0,
+              inset: 0,
+              width: "100%",
+              height: "100%",
               opacity: 0,
-              pointerEvents: "none",
+              cursor: "pointer",
+              fontSize: 0,
             }}
             onChange={(e) => {
               const list = e.target.files;
@@ -210,7 +217,6 @@ export function ConsultaRapidaForm() {
               if (list) void addFiles(list);
             }}
           />
-          {fotos.length === 0 ? "📷 Adjuntar imágenes" : "+ Agregar otra"}
         </label>
         <p className="mt-2 text-[0.7rem] text-brand-gray">
           Se comprimen a {MAX_DIMENSION}px y se elimina metadata EXIF antes

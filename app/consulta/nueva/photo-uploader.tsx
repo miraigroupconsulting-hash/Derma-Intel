@@ -225,33 +225,43 @@ export function PhotoUploader({
       )}
 
       {photos.length < maxPhotos ? (
-        /* Label-wrapping pattern: iOS Safari abre el file picker cuando
-           el usuario toca cualquier lado del <label>. NO usamos
-           `sr-only` ni `display:none` en el input porque Safari iOS
-           bloquea el picker programático en esos casos (bug histórico).
-           El input queda invisible pero NO clip-hidden. */
+        /* Patrón overlay: input <file> absolutamente posicionado
+           ENCIMA del label, ocupando 100% del área, con opacity 0.
+           El usuario toca lo que percibe como un botón, pero su tap
+           físicamente cae sobre el input — no hay forwarding necesario,
+           no hay pointer-events: none que bloquee.
+           Esto es el patrón gold-standard para file inputs porque NO
+           depende de label.click() ni de fileInput.click() programático,
+           que iOS Safari históricamente trata con reglas estrictas. */
         <label
           className={
-            "flex w-full cursor-pointer items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground " +
-            (uploading ? "pointer-events-none opacity-50" : "")
+            "relative flex w-full items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground " +
+            (uploading ? "pointer-events-none opacity-50" : "cursor-pointer")
           }
+          style={{ minHeight: 44 }}
         >
+          {uploading
+            ? "Procesando…"
+            : `📷 Agregar foto (${maxPhotos - photos.length} restante${maxPhotos - photos.length === 1 ? "" : "s"})`}
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            /* `image/*` cubre todos los formatos que pueda tener el
+               teléfono (incluído HEIC del iPhone que es default). iOS
+               a veces no respeta listas explícitas y el wildcard es
+               más confiable. removeExif() convierte cualquier formato
+               soportado por el browser a JPEG. */
+            accept="image/*"
             multiple
             disabled={uploading}
             style={{
               position: "absolute",
-              width: 1,
-              height: 1,
-              padding: 0,
-              margin: -1,
-              overflow: "hidden",
-              border: 0,
+              inset: 0,
+              width: "100%",
+              height: "100%",
               opacity: 0,
-              pointerEvents: "none",
+              cursor: "pointer",
+              fontSize: 0,
             }}
             onChange={(e) => {
               const list = e.target.files;
@@ -259,9 +269,6 @@ export function PhotoUploader({
               void handleFiles(list);
             }}
           />
-          {uploading
-            ? "Procesando…"
-            : `📷 Agregar foto (${maxPhotos - photos.length} restante${maxPhotos - photos.length === 1 ? "" : "s"})`}
         </label>
       ) : (
         <p className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-center text-xs text-neutral-600">

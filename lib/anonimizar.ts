@@ -127,7 +127,25 @@ export async function removeExif(file: File): Promise<File> {
     });
   }
 
-  if (mime === "image/png" || mime === "image/webp" || mime === "image/gif") {
+  if (
+    mime === "image/png" ||
+    mime === "image/webp" ||
+    mime === "image/gif" ||
+    mime === "image/heic" ||
+    mime === "image/heif" ||
+    mime === "image/avif"
+  ) {
+    // HEIC/HEIF (iPhone default), AVIF (Android moderno) y formatos PNG/
+    // WebP/GIF: el canvas decodifica si el browser tiene soporte nativo
+    // (Safari iOS sí decodifica HEIC). Si el browser no puede decodificar,
+    // reencodeViaCanvas lanza error y el caller lo reporta.
+    return reencodeViaCanvas(file, "image/jpeg", 0.92);
+  }
+
+  // Caso edge: iOS a veces entrega archivos sin mime type seteado
+  // (vacío) cuando los selecciona del Photos library. En ese caso,
+  // intentamos el canvas re-encode — si es decodificable, sale JPEG.
+  if (!mime) {
     return reencodeViaCanvas(file, "image/jpeg", 0.92);
   }
 
