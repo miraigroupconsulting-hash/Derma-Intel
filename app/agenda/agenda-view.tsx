@@ -166,7 +166,11 @@ function AgendaCard({
 }) {
   const color = colorPrioridad(ev.prioridad);
   const hora = formatHora(ev.fecha, tz);
-  const href = ev.pacienteId ? `/pacientes/${ev.pacienteId}` : "#";
+  // Propagamos ?from=/agenda&fromLabel=Agenda para que el BackLink
+  // de la ficha del paciente regrese a Agenda (no al dashboard).
+  const href = ev.pacienteId
+    ? `/pacientes/${ev.pacienteId}?from=%2Fagenda&fromLabel=Agenda`
+    : "#";
 
   if (variant === "row") {
     return (

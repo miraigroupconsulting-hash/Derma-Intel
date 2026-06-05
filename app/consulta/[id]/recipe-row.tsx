@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { unsignRecipe } from "./recipe/actions";
 import type { RevisionEntry } from "./recipe/revisiones";
+import { normalizePhoneForWhatsapp } from "@/lib/phone";
 
 interface Props {
   recipeId: string;
@@ -15,6 +16,11 @@ interface Props {
   firmado: boolean;
   url: string | null;
   revisiones: RevisionEntry[];
+  // Datos para construir el link de WhatsApp del récipe ya firmado.
+  // Si falta el teléfono del paciente, el botón se oculta.
+  pacienteNombre: string;
+  pacienteTelefono: string | null;
+  medicoFullName: string;
 }
 
 const ACCION_LABEL: Record<RevisionEntry["accion"], string> = {
@@ -52,12 +58,32 @@ export function RecipeRow({
   firmado,
   url,
   revisiones,
+  pacienteNombre,
+  pacienteTelefono,
+  medicoFullName,
 }: Props) {
   const router = useRouter();
   const [showHistory, setShowHistory] = useState(false);
   const [confirmingUnsign, setConfirmingUnsign] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // ----- WhatsApp link (solo si firmado + teléfono presente) ---------
+  // Reusa el patrón ya existente en recipe-form.tsx así la médica
+  // tiene un atajo de re-envío sin tener que abrir el récipe primero.
+  const whatsapp = useMemo(() => {
+    if (!firmado || !url || !pacienteTelefono) return null;
+    const { e164NoPlus } = normalizePhoneForWhatsapp(pacienteTelefono);
+    if (!e164NoPlus) return null;
+    const fechaTxt = new Date(fecha).toLocaleDateString("es-VE", {
+      timeZone: "America/Caracas",
+    });
+    const msg =
+      `Hola ${pacienteNombre.trim() || "buenas"}, aquí va el récipe ` +
+      `de tu consulta del ${fechaTxt}. Adjúntalo desde tu galería en este chat. ` +
+      `Cualquier duda, escríbeme. — ${medicoFullName}`;
+    return `https://wa.me/${e164NoPlus}?text=${encodeURIComponent(msg)}`;
+  }, [firmado, url, pacienteTelefono, pacienteNombre, medicoFullName, fecha]);
 
   const handleUnsign = () => {
     setError(null);
@@ -110,6 +136,17 @@ export function RecipeRow({
               className={buttonVariants({ variant: "outline", size: "sm" })}
             >
               Descargar PDF
+            </a>
+          )}
+          {whatsapp && (
+            <a
+              href={whatsapp}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+              aria-label={`Enviar récipe a ${pacienteNombre} por WhatsApp`}
+            >
+              📱 WhatsApp
             </a>
           )}
           {firmado ? (

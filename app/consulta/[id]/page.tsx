@@ -53,7 +53,7 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
       `
       id, fecha, motivo, anamnesis, examen_fisico,
       diagnostico_diferencial, plan_terapeutico, notas_ia, estado, created_at,
-      paciente:pacientes ( id, nombre, apellido, fecha_nacimiento, sexo, tipo_piel_fitzpatrick )
+      paciente:pacientes ( id, nombre, apellido, fecha_nacimiento, sexo, tipo_piel_fitzpatrick, telefono )
       `,
     )
     .eq("id", id)
@@ -62,6 +62,17 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
   if (!consulta) notFound();
 
   const paciente = consulta.paciente;
+
+  // Necesitamos nombre del médico para el mensaje de WhatsApp al
+  // enviar récipes. RLS limita esta query a su propia fila.
+  const { data: medico } = await supabase
+    .from("medicos")
+    .select("nombre, apellido")
+    .eq("id", user.id)
+    .maybeSingle();
+  const medicoFullName =
+    [medico?.nombre, medico?.apellido].filter(Boolean).join(" ").trim() ||
+    "tu médico";
 
   const { data: fotos } = await supabase
     .from("fotos")
@@ -250,6 +261,9 @@ export default async function ConsultaDetallePage({ params }: PageProps) {
                       firmado={r.firmado}
                       url={r.url}
                       revisiones={r.revisiones}
+                      pacienteNombre={paciente?.nombre ?? ""}
+                      pacienteTelefono={paciente?.telefono ?? null}
+                      medicoFullName={medicoFullName}
                     />
                   </li>
                 ))}

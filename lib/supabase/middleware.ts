@@ -47,7 +47,10 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/consulta") ||
     pathname.startsWith("/biblioteca") ||
     pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/perfil");
+    pathname.startsWith("/perfil") ||
+    // Mirai-only admin panel. Middleware solo asegura sesión;
+    // el page check exige email en MIRAI_ADMIN_EMAILS, si no 404.
+    pathname.startsWith("/mirai-admin");
 
   const isAuthPage = pathname === "/login" || pathname === "/signup";
 
@@ -67,9 +70,11 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Onboarding gate: any authenticated route except /onboarding itself
-  // requires the médico to have completed onboarding.
+  // (y /mirai-admin, que es para Fer y no requiere ficha de médico
+  // completa) requiere onboarding_completed=true en la fila de médico.
   const isOnboardingPage = pathname.startsWith("/onboarding");
-  if (user && isProtected && !isOnboardingPage) {
+  const isAdminPage = pathname.startsWith("/mirai-admin");
+  if (user && isProtected && !isOnboardingPage && !isAdminPage) {
     const { data: medico } = await supabase
       .from("medicos")
       .select("onboarding_completed")

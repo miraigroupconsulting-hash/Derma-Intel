@@ -22,9 +22,14 @@ import {
   stopDictation,
   type DictationError,
 } from "@/lib/voice";
-import { EMPTY_SOAP, type SoapData } from "../schema";
+import {
+  EMPTY_SOAP,
+  type SoapData,
+  type AnalizarCasoResponse,
+} from "../schema";
 import { saveConsulta, type ConsultaActionState } from "../actions";
 import { PhotoUploader, type ConsultaPhoto } from "./photo-uploader";
+import { AnalisisIaPanel } from "./analisis-ia-panel";
 import { BackLink } from "@/components/back-link";
 
 export interface PacienteLite {
@@ -101,6 +106,16 @@ export function NuevaConsultaForm({
 
   // Photos
   const [photos, setPhotos] = useState<ConsultaPhoto[]>([]);
+
+  // ----- Analizar caso con IA (Caso Clínico) -------------------------
+  // La médica captura fotos y dictado de motivo, y antes de meterse a
+  // dictar SOAP largo puede pedir lectura visual a Claude. La sugerencia
+  // queda visible inline y se persiste al guardar.
+  const [iaAnalisis, setIaAnalisis] = useState<AnalizarCasoResponse | null>(
+    null,
+  );
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   // Save state
   const [serverState, setServerState] = useState<ConsultaActionState>(
@@ -273,6 +288,69 @@ export function NuevaConsultaForm({
     }
   }, [globalTranscript, pacienteId, soap]);
 
+  // ----- Analizar caso con IA -----------------------------------------
+
+  const handleAnalizar = useCallback(async () => {
+    setAnalyzeError(null);
+    if (!pacienteId) {
+      setAnalyzeError("Selecciona un paciente primero.");
+      return;
+    }
+    if (photos.length === 0) {
+      setAnalyzeError(
+        "Agrega al menos una foto antes de analizar con IA.",
+      );
+      return;
+    }
+    setIsAnalyzing(true);
+    try {
+      // Construimos el contexto desde S+O ya capturados (si los hay).
+      // El motivo va en su propio campo del payload.
+      const contexto = [
+        soap.subjetivo.trim() ? `Subjetivo: ${soap.subjetivo.trim()}` : "",
+        soap.objetivo.trim() ? `Objetivo: ${soap.objetivo.trim()}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const res = await fetch("/api/ia/analizar-caso", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paciente_id: pacienteId,
+          motivo: motivo.trim() || undefined,
+          contexto,
+          fotos: photos.map((p) => ({
+            storage_path: p.storage_path,
+            tipo: p.tipo,
+            zona_anatomica: p.zona_anatomica ?? null,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setAnalyzeError(
+          data.error_message ??
+            data.error ??
+            "No pudimos analizar con IA. Intenta de nuevo.",
+        );
+        return;
+      }
+      setIaAnalisis(data as AnalizarCasoResponse);
+    } catch {
+      setAnalyzeError(
+        "Error de red al hablar con la IA. Puedes seguir editando manualmente.",
+      );
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [pacienteId, motivo, photos, soap.subjetivo, soap.objetivo]);
+
+  const handleClearIa = useCallback(() => {
+    setIaAnalisis(null);
+    setAnalyzeError(null);
+  }, []);
+
   // ----- Save ---------------------------------------------------------
 
   const handleSave = useCallback(
@@ -295,6 +373,23 @@ export function NuevaConsultaForm({
         analisis: soap.analisis,
         plan: soap.plan,
         transcripcion_raw: globalTranscript,
+        // Persistimos la sugerencia IA junto a la consulta para que la
+        // médica la vea de nuevo cuando reabra el detalle (estaba siendo
+        // pedida por ella y antes se perdía al recargar).
+        analisis_ia: iaAnalisis
+          ? {
+              lectura_imagen: iaAnalisis.lectura_imagen,
+              hallazgos_relevantes: iaAnalisis.hallazgos_relevantes,
+              diferenciales: iaAnalisis.diferenciales,
+              plan_diagnostico: iaAnalisis.plan_diagnostico,
+              plan_terapeutico: iaAnalisis.plan_terapeutico,
+              educacion_paciente: iaAnalisis.educacion_paciente,
+              seguimiento: iaAnalisis.seguimiento,
+              banderas_rojas: iaAnalisis.banderas_rojas,
+              derivacion_sugerida: iaAnalisis.derivacion_sugerida,
+              image_quality: iaAnalisis.image_quality,
+            }
+          : null,
         fotos: photos.map((p) => ({
           storage_path: p.storage_path,
           tipo: p.tipo,
@@ -372,6 +467,71 @@ export function NuevaConsultaForm({
           onChange={setPhotos}
           maxPhotos={5}
         />
+      </section>
+
+      {/* Analizar caso con IA — vive aquí, JUSTO debajo de las fotos.
+          El flow real de uso es: tomar fotos → pedir lectura visual a
+          la IA → ver la sugerencia → DICTAR el SOAP ya informada. Antes
+          esto vivía al final del form y nadie lo usaba porque scrollear
+          abajo y volver arriba para dictar rompía el momentum. */}
+      <section className="mb-5">
+        <div className="rounded-lg border border-neutral-200 bg-gradient-to-br from-neutral-50 to-white p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold uppercase tracking-wide text-neutral-700">
+                Lectura asistida por IA
+              </p>
+              <p className="text-xs text-neutral-500">
+                Pide a Claude un diferencial sugerido sobre las fotos
+                {soap.subjetivo.trim() || soap.objetivo.trim()
+                  ? " + el contexto SOAP que llevas"
+                  : ""}
+                . La decisión y firma siguen siendo tuyas.
+              </p>
+            </div>
+            {iaAnalisis && !isAnalyzing && (
+              <button
+                type="button"
+                onClick={handleClearIa}
+                className="shrink-0 text-xs text-neutral-500 hover:text-neutral-900 hover:underline"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
+
+          <Button
+            type="button"
+            variant={iaAnalisis ? "outline" : "default"}
+            size="lg"
+            disabled={isAnalyzing || photos.length === 0 || !pacienteId}
+            onClick={handleAnalizar}
+            className="mt-2 h-12 w-full"
+          >
+            {isAnalyzing
+              ? "Analizando con IA…"
+              : iaAnalisis
+              ? "🔁 Re-analizar"
+              : "🤖 Analizar caso con IA"}
+          </Button>
+
+          {photos.length === 0 && !isAnalyzing && (
+            <p className="mt-2 text-xs text-neutral-500">
+              Agrega al menos una foto arriba para habilitar el análisis.
+            </p>
+          )}
+
+          {analyzeError && (
+            <p
+              className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700"
+              role="alert"
+            >
+              {analyzeError}
+            </p>
+          )}
+
+          {iaAnalisis && <AnalisisIaPanel data={iaAnalisis} />}
+        </div>
       </section>
 
       <section className="mb-5">
@@ -474,10 +634,10 @@ export function NuevaConsultaForm({
       )}
 
       <section className="mt-6 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-600">
-        Después de guardar esta consulta, en la vista de detalle vas a
-        poder consultar a la IA en sus 6 modos clínicos (Caso Clínico,
-        Express, Bibliografía, Histopatología, Terapéutica, Docente)
-        con la imagen y el contexto que acabas de capturar.
+        Una vez guardada esta consulta, en la vista de detalle podrás
+        conversar con la IA en sus 6 modos clínicos (Express,
+        Bibliografía, Histopatología, Terapéutica, Docente, Caso
+        Clínico) y generar récipe / informe médico.
       </section>
 
       {serverState.error && (
