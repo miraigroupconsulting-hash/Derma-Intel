@@ -24,8 +24,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient as createSsrClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { runClinicalCall } from "@/lib/claude";
-import { analizarCasoResponseSchema } from "@/app/consulta/schema";
+import { runStructuredClinicalCall } from "@/lib/claude";
+import {
+  analizarCasoResponseSchema,
+  ANALISIS_TOOL_INPUT_SCHEMA,
+} from "@/app/consulta/schema";
 import type { Database } from "@/types/database";
 
 const SONNET_INPUT_USD_PER_MTOK = 3.0;
@@ -67,32 +70,17 @@ Recibirás:
   1. Una o más imágenes clínicas o dermatoscópicas.
   2. Contexto en texto que el médico provee (puede ser breve, telegráfico, o estar vacío).
 
-Tu trabajo: devolver SOLO un JSON con esta forma exacta:
-
-{
-  "lectura_imagen": "descripción estructurada de lo visible: tipo de imagen (clínica vs dermatoscópica), localización si deducible, lesión (tipo elemental, número, distribución, color, tamaño relativo, bordes, simetría), hallazgos dermatoscópicos cuando aplica",
-  "hallazgos_relevantes": "síntesis breve de imagen + contexto recibido",
-  "diferenciales": [
-    { "nombre": "...", "probabilidad": "alta" | "media" | "baja", "fundamento": "una línea con el porqué clínico" }
-  ],
-  "plan_diagnostico": "estudios complementarios pertinentes, cuándo considerar biopsia",
-  "plan_terapeutico": "tratamiento de primera línea + alternativas + consideraciones",
-  "educacion_paciente": "lenguaje claro que el médico puede transmitir al paciente",
-  "seguimiento": "plazo y qué evaluar",
-  "banderas_rojas": ["bandera 1", "bandera 2"],
-  "derivacion_sugerida": "oncología / cirugía / dermatopatología / atención presencial urgente, o vacío si no aplica",
-  "image_quality": "adequate" | "limited" | "insufficient" | "none"
-}
+Tu trabajo: analizar el caso y devolver tu lectura estructurada llamando a la herramienta "emitir_analisis". Llena todos sus campos; deja como cadena vacía o arreglo vacío los que no apliquen.
 
 REGLAS INVIOLABLES:
 
 1. NUNCA emites diagnóstico definitivo. Usa "diferencial", "sugerente de", "hallazgos compatibles con".
-2. Si la imagen es insuficiente, pon "image_quality": "insufficient" y deja diferenciales como hipótesis preliminar basada en lo que haya.
+2. Si la imagen es insuficiente, pon image_quality "insufficient" y deja diferenciales como hipótesis preliminar basada en lo que haya.
 3. Para banderas rojas (sospecha de malignidad, urgencia, riesgo vital) inclúyelas explícitamente y refleja la urgencia en derivacion_sugerida.
 4. Para sustancias controladas (corticoides sistémicos prolongados, isotretinoína, inmunosupresores) marca "Requiere confirmación del médico" antes de cualquier posología.
 5. Como NO hay paciente identificado, NO asumas edad, sexo, antecedentes ni fototipo a menos que el médico los mencione en contexto. Si la decisión clínica depende de esos datos, dilo: "Conducta depende de edad/comorbilidades a confirmar".
 6. NUNCA inventes hallazgos que no están en la imagen.
-7. Output: ÚNICAMENTE el JSON. Sin markdown, sin code fences.
+7. Sé conciso: frases clínicas, no párrafos largos. Cada campo en su justa medida.
 8. Si no tienes referencia bibliográfica firme, no la cites.
 
 LENGUAJE OBLIGATORIO — Médico-técnico formal LATAM, sin coloquialismos:
@@ -117,18 +105,6 @@ interface ImageForClaude {
     media_type: (typeof SUPPORTED_MIME)[number];
     data: string;
   };
-}
-
-function isTextBlock(b: { type: string }): b is { type: "text"; text: string } {
-  return b.type === "text" && typeof (b as { text?: unknown }).text === "string";
-}
-
-function stripJsonFences(text: string): string {
-  const fence = text.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
-  if (fence && fence[1]) return fence[1].trim();
-  const brace = text.match(/\{[\s\S]*\}/);
-  if (brace) return brace[0];
-  return text;
 }
 
 function adminClient() {
@@ -183,17 +159,20 @@ export async function POST(req: Request) {
 
   const t0 = Date.now();
   try {
-    const response = await runClinicalCall({
+    const response = await runStructuredClinicalCall({
       mode: "CASO_CLINICO",
-      maxTokens: 1800,
+      maxTokens: 3000,
       systemPromptOverride: SYSTEM_PROMPT,
+      tool: {
+        name: "emitir_analisis",
+        description:
+          "Emite la lectura clínica estructurada del caso (diferenciales, planes, banderas rojas, calidad de imagen).",
+        input_schema: ANALISIS_TOOL_INPUT_SCHEMA,
+      },
       userMessages: [
         {
           role: "user",
-          content: [
-            ...imageBlocks,
-            { type: "text", text: contextBlock },
-          ],
+          content: [...imageBlocks, { type: "text", text: contextBlock }],
         },
       ],
     });
@@ -205,7 +184,7 @@ export async function POST(req: Request) {
 
     // eslint-disable-next-line no-console
     console.log(
-      `[claude-call] mode=consulta_rapida model=${response.model} prompt_tokens=${inTok} completion_tokens=${outTok} total_tokens=${inTok + outTok} est_cost_usd=${cost.toFixed(6)} latency_ms=${latencyMs}`,
+      `[claude-call] mode=consulta_rapida model=${response.model} prompt_tokens=${inTok} completion_tokens=${outTok} total_tokens=${inTok + outTok} est_cost_usd=${cost.toFixed(6)} latency_ms=${latencyMs} stop=${response.stopReason}`,
     );
 
     // Log to uso_ia for cost analytics
@@ -228,28 +207,31 @@ export async function POST(req: Request) {
       );
     }
 
-    // Parse model output
-    let raw = "";
-    for (const block of response.content) {
-      if (isTextBlock(block)) {
-        raw = block.text.trim();
-        break;
-      }
-    }
-    let modelJson: unknown;
-    try {
-      modelJson = JSON.parse(stripJsonFences(raw));
-    } catch {
+    // El tool_use input ya viene como objeto. Si el modelo se quedó sin
+    // tokens a media tool call, stopReason === "max_tokens" y el input
+    // puede venir incompleto: lo tratamos como error claro.
+    if (response.input === undefined) {
+      console.error(
+        `[claude-call] mode=consulta_rapida NO_TOOL_USE stop=${response.stopReason} text="${response.rawText?.slice(0, 200) ?? ""}"`,
+      );
       return NextResponse.json(
-        { error: "La IA respondió en formato inesperado. Reintenta." },
+        {
+          error:
+            response.stopReason === "max_tokens"
+              ? "El análisis quedó incompleto (respuesta muy larga). Reintenta con menos imágenes o más contexto."
+              : "La IA no devolvió un análisis. Reintenta.",
+        },
         { status: 502 },
       );
     }
 
-    const responseParsed = analizarCasoResponseSchema.safeParse(modelJson);
+    const responseParsed = analizarCasoResponseSchema.safeParse(response.input);
     if (!responseParsed.success) {
+      console.error(
+        `[claude-call] mode=consulta_rapida SCHEMA_FAIL issues=${JSON.stringify(responseParsed.error.issues.slice(0, 3))}`,
+      );
       return NextResponse.json(
-        { error: "La IA respondió con campos inesperados." },
+        { error: "La IA respondió con campos inesperados. Reintenta." },
         { status: 502 },
       );
     }

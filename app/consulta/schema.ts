@@ -159,6 +159,90 @@ export const EMPTY_ANALIZAR: AnalizarCasoResponse = {
 };
 
 /**
+ * JSON Schema for the forced-tool-use call that produces the análisis.
+ * Mirrors analizarCasoResponseSchema (minus the server-only echo fields
+ * tokens_used / error). Used by /api/ia/analizar-caso and
+ * /api/ia/consulta-rapida via runStructuredClinicalCall so the model
+ * MUST return a well-formed object (no more truncated-JSON parse fails).
+ *
+ * Kept as a hand-written literal (not zod-to-json-schema) to avoid a new
+ * dependency and to keep the field descriptions tuned for the model.
+ */
+export const ANALISIS_TOOL_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    lectura_imagen: {
+      type: "string",
+      description:
+        "Descripción estructurada de lo visible: tipo de imagen (clínica vs dermatoscópica), localización si deducible, lesión (tipo elemental, número, distribución, color, tamaño relativo, bordes, simetría), hallazgos dermatoscópicos cuando aplica. Lenguaje médico-técnico formal.",
+    },
+    hallazgos_relevantes: {
+      type: "string",
+      description: "Síntesis breve de imagen + contexto recibido.",
+    },
+    diferenciales: {
+      type: "array",
+      description:
+        "Diagnósticos diferenciales ordenados por probabilidad. Vacío si la imagen es insuficiente.",
+      items: {
+        type: "object",
+        properties: {
+          nombre: { type: "string" },
+          probabilidad: { type: "string", enum: ["alta", "media", "baja"] },
+          fundamento: {
+            type: "string",
+            description: "Una línea con el porqué clínico.",
+          },
+        },
+        required: ["nombre", "probabilidad", "fundamento"],
+      },
+    },
+    plan_diagnostico: {
+      type: "string",
+      description:
+        "Estudios complementarios pertinentes, cuándo considerar biopsia.",
+    },
+    plan_terapeutico: {
+      type: "string",
+      description:
+        'Tratamiento de primera línea + alternativas + consideraciones. Para sustancias controladas, anteponer "Requiere confirmación del médico".',
+    },
+    educacion_paciente: {
+      type: "string",
+      description: "Lenguaje claro que el médico puede transmitir al paciente.",
+    },
+    seguimiento: { type: "string", description: "Plazo y qué evaluar." },
+    banderas_rojas: {
+      type: "array",
+      description:
+        "Señales de alarma (sospecha de malignidad, urgencia, riesgo vital). Vacío si no hay.",
+      items: { type: "string" },
+    },
+    derivacion_sugerida: {
+      type: "string",
+      description:
+        "Oncología / cirugía / dermatopatología / atención presencial urgente, o cadena vacía si no aplica.",
+    },
+    image_quality: {
+      type: "string",
+      enum: ["adequate", "limited", "insufficient", "none"],
+    },
+  },
+  required: [
+    "lectura_imagen",
+    "hallazgos_relevantes",
+    "diferenciales",
+    "plan_diagnostico",
+    "plan_terapeutico",
+    "educacion_paciente",
+    "seguimiento",
+    "banderas_rojas",
+    "derivacion_sugerida",
+    "image_quality",
+  ],
+} as const;
+
+/**
  * Input for the save consulta server action. Validates everything that
  * the client sends and that ends up in the DB.
  */

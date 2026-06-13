@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient as createSsrClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { runClinicalCall } from "@/lib/claude";
+import { runStructuredClinicalCall } from "@/lib/claude";
 import { anonymizeText } from "@/lib/anonimizar";
 import {
   analizarCasoRequestSchema,
   analizarCasoResponseSchema,
+  ANALISIS_TOOL_INPUT_SCHEMA,
   EMPTY_ANALIZAR,
 } from "@/app/consulta/schema";
 import type { Database } from "@/types/database";
@@ -76,23 +77,6 @@ LENGUAJE OBLIGATORIO — Médico-técnico formal LATAM, sin coloquialismos:
 - Verbos formales: "se objetiva", "se evidencia", "presenta", "compatible con", "sugerente de". NO "hay", "tiene", "se ve".
 
 No simplifiques nomenclatura médica. El interlocutor es un dermatólogo licenciado — no necesita explicaciones de qué es una pápula.`;
-
-interface ClaudeUsage {
-  input_tokens?: number;
-  output_tokens?: number;
-}
-
-function isTextBlock(b: { type: string }): b is { type: "text"; text: string } {
-  return b.type === "text" && typeof (b as { text?: unknown }).text === "string";
-}
-
-function stripJsonFences(text: string): string {
-  const fence = text.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
-  if (fence && fence[1]) return fence[1].trim();
-  const brace = text.match(/\{[\s\S]*\}/);
-  if (brace) return brace[0];
-  return text;
-}
 
 // =====================================================================
 // Image fetch helpers
@@ -253,83 +237,60 @@ export async function POST(req: Request) {
     motivoLine +
     contextBlock +
     fotosLine +
-    `Responde SOLO con el JSON estructurado.`;
+    `Emite tu lectura estructurada llamando a la herramienta "emitir_analisis".`;
 
-  // ----- Call Claude (Sonnet 4.6, vision-capable) --------------------
+  // ----- Call Claude (Sonnet 4.6, vision-capable, forced tool use) ---
   const t0 = Date.now();
   try {
-    const response = await runClinicalCall({
+    const response = await runStructuredClinicalCall({
       mode: "CASO_CLINICO",
-      maxTokens: 2500,
+      maxTokens: 3500,
+      tool: {
+        name: "emitir_analisis",
+        description:
+          "Emite la lectura clínica estructurada del caso (diferenciales, planes, banderas rojas, calidad de imagen).",
+        input_schema: ANALISIS_TOOL_INPUT_SCHEMA,
+      },
       userMessages: [
         {
           role: "user",
-          content: [
-            { type: "text", text: userTextPrompt },
-            ...imageBlocks,
-          ],
+          content: [{ type: "text", text: userTextPrompt }, ...imageBlocks],
         },
       ],
     });
 
     const latencyMs = Date.now() - t0;
-    const usage = (response.usage ?? {}) as ClaudeUsage;
-    const inputTok = usage.input_tokens ?? 0;
-    const outputTok = usage.output_tokens ?? 0;
+    const inputTok = response.usage?.input_tokens ?? 0;
+    const outputTok = response.usage?.output_tokens ?? 0;
     const costUsd = estimateCostUsd(inputTok, outputTok);
 
     // eslint-disable-next-line no-console
     console.log(
-      `[claude-call] mode=caso_clinico model=${response.model} images=${imageBlocks.length} prompt_tokens=${inputTok} completion_tokens=${outputTok} total_tokens=${inputTok + outputTok} est_cost_usd=${costUsd.toFixed(6)} latency_ms=${latencyMs}`,
+      `[claude-call] mode=caso_clinico model=${response.model} images=${imageBlocks.length} prompt_tokens=${inputTok} completion_tokens=${outputTok} total_tokens=${inputTok + outputTok} est_cost_usd=${costUsd.toFixed(6)} latency_ms=${latencyMs} stop=${response.stopReason}`,
     );
 
-    let raw = "";
-    for (const block of response.content) {
-      if (isTextBlock(block)) {
-        raw = block.text.trim();
-        break;
-      }
-    }
-    const jsonText = stripJsonFences(raw);
-    let modelJson: unknown;
-    try {
-      modelJson = JSON.parse(jsonText);
-    } catch {
+    // El tool_use input ya es un objeto. undefined => el modelo no
+    // llamó la tool (raro con tool_choice forzado) o se truncó.
+    if (response.input === undefined) {
       // eslint-disable-next-line no-console
       console.error(
-        `[claude-call] mode=caso_clinico JSON parse failed. raw="${raw.slice(0, 200)}…"`,
+        `[claude-call] mode=caso_clinico NO_TOOL_USE stop=${response.stopReason} text="${response.rawText?.slice(0, 200) ?? ""}"`,
       );
       return NextResponse.json(
         {
           ...EMPTY_ANALIZAR,
           error: true,
           error_message:
-            "La IA respondió en formato inesperado. Intenta otra vez.",
-          tokens_used: {
-            input: inputTok,
-            output: outputTok,
-            total: inputTok + outputTok,
-            estimated_cost_usd: costUsd,
-          },
-        },
-        { status: 200 },
-      );
-    }
-
-    if (typeof modelJson !== "object" || modelJson === null) {
-      return NextResponse.json(
-        {
-          ...EMPTY_ANALIZAR,
-          error: true,
-          error_message:
-            "La IA respondió en formato inesperado. Intenta otra vez.",
+            response.stopReason === "max_tokens"
+              ? "El análisis quedó incompleto (respuesta muy larga). Reintenta."
+              : "La IA respondió en formato inesperado. Intenta otra vez.",
         },
         { status: 200 },
       );
     }
 
     const responseParsed = analizarCasoResponseSchema.safeParse({
-      ...(modelJson as Record<string, unknown>),
+      ...(response.input as Record<string, unknown>),
       tokens_used: {
         input: inputTok,
         output: outputTok,

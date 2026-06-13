@@ -201,6 +201,90 @@ export async function runClinicalCall(input: ClinicalCallInput) {
   });
 }
 
+// ---------------------------------------------------------------------
+// Structured-output call (forced tool use)
+// ---------------------------------------------------------------------
+
+export interface StructuredToolSpec {
+  /** Tool name the model must call (snake_case). */
+  name: string;
+  /** One-line description of what the tool emits. */
+  description: string;
+  /** JSON Schema for the tool input (the structured object we want). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  input_schema: any; // any-ok: Anthropic.Tool.InputSchema is a loose JSON-Schema shape
+}
+
+export interface StructuredCallInput {
+  mode: ClinicalMode;
+  userMessages: Anthropic.MessageParam[];
+  tool: StructuredToolSpec;
+  modelOverride?: string;
+  maxTokens?: number;
+  systemPromptOverride?: string;
+}
+
+export interface StructuredCallResult {
+  /** The tool_use input — already a parsed object, never a JSON string. */
+  input: unknown;
+  model: string;
+  usage: Anthropic.Usage;
+  stopReason: string | null;
+  /** Any text block the model emitted alongside (usually empty). */
+  rawText: string | null;
+}
+
+/**
+ * Run a clinical call that FORCES the model to return structured data
+ * via tool use. Unlike runClinicalCall (where the model writes JSON as
+ * free text we then parse — fragile, truncates under max_tokens), this
+ * uses `tool_choice` to require a single tool call whose `input` is a
+ * validated object. Eliminates the whole "respondió en formato
+ * inesperado" failure class.
+ *
+ * The caller still validates `.input` with zod as defense-in-depth.
+ */
+export async function runStructuredClinicalCall(
+  input: StructuredCallInput,
+): Promise<StructuredCallResult> {
+  const system = input.systemPromptOverride ?? (await loadSystemPrompt());
+  const model = input.modelOverride ?? pickModelForMode(input.mode);
+
+  const resp = await client().messages.create({
+    model,
+    max_tokens: input.maxTokens ?? 3000,
+    system,
+    messages: input.userMessages,
+    tools: [
+      {
+        name: input.tool.name,
+        description: input.tool.description,
+        input_schema: input.tool.input_schema,
+      },
+    ],
+    // Force the model to call our tool — no free-form text response.
+    tool_choice: { type: "tool", name: input.tool.name },
+  });
+
+  let toolInput: unknown = undefined;
+  let rawText: string | null = null;
+  for (const block of resp.content) {
+    if (block.type === "tool_use" && block.name === input.tool.name) {
+      toolInput = block.input;
+      break;
+    }
+    if (block.type === "text") rawText = block.text;
+  }
+
+  return {
+    input: toolInput,
+    model: resp.model,
+    usage: resp.usage,
+    stopReason: resp.stop_reason,
+    rawText,
+  };
+}
+
 /**
  * Streaming variant. Returns the Anthropic MessageStream so the
  * caller can iterate text deltas and forward them via SSE. The
