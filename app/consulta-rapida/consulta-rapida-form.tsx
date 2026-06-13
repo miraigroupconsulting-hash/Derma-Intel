@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { removeExif } from "@/lib/anonimizar";
+import { processImageToJpeg } from "@/lib/image";
 import { AnalisisIaPanel } from "@/app/consulta/nueva/analisis-ia-panel";
 import type { AnalizarCasoResponse } from "@/app/consulta/schema";
 
@@ -34,26 +34,41 @@ export function ConsultaRapidaForm() {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const addFiles = useCallback(async (incoming: FileList) => {
+  // IMPORTANTE: recibe File[] ya copiado (NO un FileList vivo). El
+  // onChange hace Array.from() ANTES de resetear input.value, porque
+  // en Safari iOS resetear value invalida/vacía el FileList y los
+  // File se pierden. Ese era el bug que hacía que "no cargaran" las
+  // imágenes en iPhone aunque el picker abriera bien.
+  const addFiles = useCallback(async (incoming: File[]) => {
     setError(null);
     const room = MAX_FOTOS - fotos.length;
     if (room <= 0) {
       setError(`Máximo ${MAX_FOTOS} imágenes por consulta rápida.`);
       return;
     }
-    const files = Array.from(incoming).slice(0, room);
+    if (incoming.length === 0) {
+      setError(
+        "No recibimos ninguna imagen del selector. Reintenta; si persiste, toma la foto con la cámara en vez de elegir de la galería.",
+      );
+      return;
+    }
+    const files = incoming.slice(0, room);
 
     for (const file of files) {
       // iOS a veces entrega archivos con mime vacío desde la Photos
-      // library. Antes saltábamos esos archivos silenciosamente, lo
-      // cual le aparecía a la médica como "no se cargan las imágenes".
-      // Ahora dejamos que removeExif() intente el canvas re-encode
-      // y reporte error específico si el browser no puede decodificar.
-      if (file.type && !file.type.startsWith("image/")) continue;
+      // library. No saltamos por mime vacío — dejamos que el decode
+      // intente y reporte un error específico si no puede.
+      if (file.type && !file.type.startsWith("image/")) {
+        setError(
+          `"${file.name || "archivo"}" no es una imagen (${file.type}). Elige una foto.`,
+        );
+        continue;
+      }
       try {
-        // 1. Strip EXIF + recomprimir a JPEG con maxDimension
-        const stripped = await removeExif(file);
-        const resized = await resizeToJpeg(stripped, MAX_DIMENSION);
+        // Pipeline unificado: decodifica UNA vez, redimensiona y
+        // exporta JPEG (descarta EXIF de paso). Más robusto que el
+        // doble-canvas anterior y con mejor soporte HEIC.
+        const resized = await processImageToJpeg(file, MAX_DIMENSION);
         if (resized.size < MIN_BYTES) {
           setError("Una imagen quedó demasiado pequeña tras comprimir. Reintenta con mejor calidad.");
           continue;
@@ -73,8 +88,15 @@ export function ConsultaRapidaForm() {
         ]);
       } catch (e) {
         console.error("[consulta-rapida] foto failed:", e);
+        // Diagnóstico visible: tipo/tamaño del archivo + razón. Así la
+        // próxima prueba en iPhone nos dice exactamente qué pasó en vez
+        // de "no cargan" a secas.
+        const detalle = `${file.name || "imagen"} · ${file.type || "sin-tipo"} · ${Math.round(
+          file.size / 1024,
+        )}KB`;
         setError(
-          `No pudimos procesar una imagen: ${e instanceof Error ? e.message : "error"}`,
+          `No pudimos procesar ${detalle}: ${e instanceof Error ? e.message : "error desconocido"}. ` +
+            `Si tu iPhone guarda en HEIC, ve a Ajustes › Cámara › Formatos › "Más compatible".`,
         );
       }
     }
@@ -212,9 +234,11 @@ export function ConsultaRapidaForm() {
               fontSize: 0,
             }}
             onChange={(e) => {
-              const list = e.target.files;
+              // Copiamos a array ANTES de resetear value. En Safari iOS
+              // `value = ""` invalida el FileList y perdíamos los File.
+              const picked = e.target.files ? Array.from(e.target.files) : [];
               e.target.value = "";
-              if (list) void addFiles(list);
+              void addFiles(picked);
             }}
           />
         </label>
@@ -282,45 +306,6 @@ export function ConsultaRapidaForm() {
 // =====================================================================
 // Helpers
 // =====================================================================
-
-/**
- * Re-encode + resize una imagen a JPEG con maxDimension en lado largo.
- * Si la imagen ya es más pequeña, conserva tamaño pero re-encoda (lo
- * cual también descarta metadata residual).
- */
-async function resizeToJpeg(file: Blob, maxDim: number): Promise<Blob> {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image();
-      el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error("No pudimos leer la imagen"));
-      el.src = url;
-    });
-    const ratio = Math.min(
-      1,
-      maxDim / Math.max(img.naturalWidth, img.naturalHeight),
-    );
-    const w = Math.round(img.naturalWidth * ratio);
-    const h = Math.round(img.naturalHeight * ratio);
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas 2D no disponible");
-    ctx.drawImage(img, 0, 0, w, h);
-    const blob: Blob = await new Promise((resolve, reject) =>
-      canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error("toBlob falló"))),
-        "image/jpeg",
-        0.88,
-      ),
-    );
-    return blob;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
 
 /** Blob → base64 sin el prefix "data:...;base64," */
 function fileToBase64(file: Blob): Promise<string> {

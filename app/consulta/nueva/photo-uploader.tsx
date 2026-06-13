@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import imageCompression, { type Options as ImageCompressionOptions } from "browser-image-compression";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
-import { removeExif } from "@/lib/anonimizar";
+import { processImageToJpeg } from "@/lib/image";
 
 export interface ConsultaPhoto {
   // local-only id for React keys
@@ -26,19 +25,11 @@ export interface ConsultaPhoto {
   zona_anatomica: string | null;
 }
 
-const COMPRESSION_OPTS: ImageCompressionOptions = {
-  // 1 MB cap; keeps Storage usage low and IA payloads cheap (image
-  // tokens scale roughly with pixel area, and Sonnet output is ~5x
-  // the input price so every input byte saved compounds).
-  maxSizeMB: 1.0,
-  // 1280px on the longest edge. Dermoscopy review still resolves
-  // pigment network, vessels, and morphology at this resolution while
-  // costing ~60% less in image tokens than 2048px.
-  maxWidthOrHeight: 1280,
-  useWebWorker: true,
-  fileType: "image/jpeg",
-  initialQuality: 0.9,
-};
+// 1280px en el lado largo: la revisión dermatoscópica resuelve red
+// pigmentaria, vasos y morfología a esta resolución, costando ~60%
+// menos en tokens de imagen que a 2048px. processImageToJpeg hace el
+// resize + JPEG en una sola pasada de canvas (descarta EXIF de paso).
+const MAX_DIMENSION = 1280;
 
 function randomId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -64,15 +55,24 @@ export function PhotoUploader({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // IMPORTANTE: recibe File[] ya copiado (NO un FileList vivo). El
+  // onChange hace Array.from() ANTES de resetear input.value, porque en
+  // Safari iOS resetear value invalida el FileList y los File se pierden
+  // — ese era el bug que hacía que "no cargaran" las fotos en iPhone.
   const handleFiles = useCallback(
-    async (files: FileList | null) => {
-      if (!files || files.length === 0) return;
+    async (incoming: File[]) => {
+      if (incoming.length === 0) {
+        setUploadError(
+          "No recibimos ninguna imagen del selector. Reintenta; si persiste, toma la foto con la cámara en vez de elegir de la galería.",
+        );
+        return;
+      }
       const remaining = maxPhotos - photos.length;
       if (remaining <= 0) {
         setUploadError(`Máximo ${maxPhotos} fotos por consulta.`);
         return;
       }
-      const toProcess = Array.from(files).slice(0, remaining);
+      const toProcess = incoming.slice(0, remaining);
       setUploadError(null);
       setUploading(true);
 
@@ -87,45 +87,60 @@ export function PhotoUploader({
 
         const tempConsultaSegment = `temp-${randomId()}`;
         const next: ConsultaPhoto[] = [];
+        const failures: string[] = [];
 
         for (const raw of toProcess) {
-          if (!raw.type.startsWith("image/")) {
-            throw new Error(
-              `"${raw.name}" no es una imagen. Solo aceptamos JPG, PNG o WebP.`,
+          // No abortamos todo el batch si una foto falla: procesamos
+          // las demás y reportamos al final cuáles fallaron.
+          try {
+            if (raw.type && !raw.type.startsWith("image/")) {
+              throw new Error(`no es una imagen (${raw.type})`);
+            }
+
+            // Decodifica (robusto a HEIC) + resize + JPEG + strip EXIF
+            // en una sola pasada de canvas.
+            const compressed = await processImageToJpeg(raw, MAX_DIMENSION);
+
+            // Upload a Storage. RLS permite escribir solo cuando el
+            // primer segmento del path es auth.uid().
+            const photoId = randomId();
+            const storagePath = `${user.id}/${tempConsultaSegment}/${photoId}.jpg`;
+            const { error: uploadErr } = await supabase.storage
+              .from("fotos-consultas")
+              .upload(storagePath, compressed, {
+                contentType: "image/jpeg",
+                upsert: false,
+              });
+            if (uploadErr) {
+              throw new Error(`fallo al subir: ${uploadErr.message}`);
+            }
+
+            next.push({
+              localId: photoId,
+              storage_path: storagePath,
+              preview_url: URL.createObjectURL(compressed),
+              tipo: "clinica",
+              zona_anatomica: null,
+            });
+          } catch (perFileErr) {
+            // eslint-disable-next-line no-console
+            console.error("[photo-uploader] foto failed:", raw.name, perFileErr);
+            const detalle = `${raw.name || "imagen"} · ${raw.type || "sin-tipo"} · ${Math.round(
+              raw.size / 1024,
+            )}KB`;
+            failures.push(
+              `${detalle}: ${perFileErr instanceof Error ? perFileErr.message : "error"}`,
             );
           }
-
-          // 1. Strip EXIF first (BEFORE compression, while file is still
-          //    in its original form so piexifjs can find the segments).
-          const stripped = await removeExif(raw);
-
-          // 2. Compress + resize.
-          const compressed = await imageCompression(stripped, COMPRESSION_OPTS);
-
-          // 3. Upload to Storage. RLS allows write only when the first
-          //    path segment equals auth.uid().
-          const photoId = randomId();
-          const storagePath = `${user.id}/${tempConsultaSegment}/${photoId}.jpg`;
-          const { error: uploadErr } = await supabase.storage
-            .from("fotos-consultas")
-            .upload(storagePath, compressed, {
-              contentType: "image/jpeg",
-              upsert: false,
-            });
-          if (uploadErr) {
-            throw new Error(`No pudimos subir "${raw.name}": ${uploadErr.message}`);
-          }
-
-          next.push({
-            localId: photoId,
-            storage_path: storagePath,
-            preview_url: URL.createObjectURL(compressed),
-            tipo: "clinica",
-            zona_anatomica: null,
-          });
         }
 
-        onChange([...photos, ...next]);
+        if (next.length > 0) onChange([...photos, ...next]);
+        if (failures.length > 0) {
+          setUploadError(
+            `No pudimos procesar ${failures.length} imagen(es): ${failures.join(" | ")}. ` +
+              `Si tu iPhone guarda en HEIC, ve a Ajustes › Cámara › Formatos › "Más compatible".`,
+          );
+        }
       } catch (err) {
         setUploadError(err instanceof Error ? err.message : "Error al subir foto.");
       } finally {
@@ -249,8 +264,8 @@ export function PhotoUploader({
             /* `image/*` cubre todos los formatos que pueda tener el
                teléfono (incluído HEIC del iPhone que es default). iOS
                a veces no respeta listas explícitas y el wildcard es
-               más confiable. removeExif() convierte cualquier formato
-               soportado por el browser a JPEG. */
+               más confiable. processImageToJpeg() decodifica cualquier
+               formato que el browser soporte y lo convierte a JPEG. */
             accept="image/*"
             multiple
             disabled={uploading}
@@ -264,9 +279,11 @@ export function PhotoUploader({
               fontSize: 0,
             }}
             onChange={(e) => {
-              const list = e.target.files;
+              // Copiamos a array ANTES de resetear value. En Safari iOS
+              // `value = ""` invalida el FileList y perdíamos los File.
+              const picked = e.target.files ? Array.from(e.target.files) : [];
               e.target.value = "";
-              void handleFiles(list);
+              void handleFiles(picked);
             }}
           />
         </label>
