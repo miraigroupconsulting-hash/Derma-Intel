@@ -2,30 +2,33 @@
  * POST /api/ia/transcribir
  *
  * Transcripción de voz tipo "Wispr Flow": el cliente graba audio
- * (MediaRecorder) y lo manda acá; nosotros lo reenviamos a un modelo
- * Whisper hospedado en Groq (whisper-large-v3) — rápido y barato, con
- * muy buena precisión en español médico. Devolvemos el texto plano.
+ * (MediaRecorder) y lo manda acá; nosotros lo reenviamos a Whisper de
+ * OpenAI (whisper-1), con muy buena precisión en español médico.
+ * Devolvemos el texto plano.
+ *
+ * NOTA: la llamada sale desde el servidor (Vercel, EE.UU.), no desde el
+ * dispositivo de la médica — así que su ubicación no afecta el uso.
  *
  * El médico luego pule/estructura ese texto con el botón "Estructurar
  * con IA" (Claude) que ya existe. Acá NO llamamos a Claude — solo
  * transcribimos, para mantener la latencia baja.
  *
- * Proveedor: Groq (OpenAI-compatible). Para cambiar a OpenAI, basta
- * cambiar BASE_URL y la env key — el shape del request es el mismo.
+ * Para cambiar de proveedor (p. ej. Groq o Deepgram) basta cambiar la
+ * URL/modelo/env key — el shape multipart es el estándar de OpenAI.
  *
  * PRIVACIDAD (CLAUDE.md §2.3): el audio puede contener el nombre del
- * paciente; no se puede anonimizar antes de transcribir. Groq declara
- * que los datos de su API NO se usan para entrenamiento. Aun así, la
- * recomendación a la médica es evitar nombres completos en el dictado.
+ * paciente; no se puede anonimizar antes de transcribir. OpenAI no usa
+ * datos de su API para entrenar por defecto. Aun así, la recomendación a
+ * la médica es evitar nombres completos en el dictado.
  */
 import { NextResponse } from "next/server";
 import { createClient as createSsrClient } from "@/lib/supabase/server";
 
 export const maxDuration = 60;
 
-const GROQ_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
-const MODEL = "whisper-large-v3";
-const MAX_BYTES = 20 * 1024 * 1024; // 20 MB (Groq admite 25; dejamos margen)
+const TRANSCRIBE_URL = "https://api.openai.com/v1/audio/transcriptions";
+const MODEL = "whisper-1";
+const MAX_BYTES = 24 * 1024 * 1024; // 24 MB (OpenAI admite 25; dejamos margen)
 
 export async function POST(req: Request) {
   // ----- Auth ---------------------------------------------------------
@@ -37,10 +40,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Sesión expirada." }, { status: 401 });
   }
 
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     // eslint-disable-next-line no-console
-    console.error("[transcribir] GROQ_API_KEY no configurada");
+    console.error("[transcribir] OPENAI_API_KEY no configurada");
     return NextResponse.json(
       {
         error:
@@ -77,29 +80,29 @@ export async function POST(req: Request) {
       ? (audio as File).name
       : "dictado.webm";
 
-  const groqForm = new FormData();
-  groqForm.append("file", audio, filename);
-  groqForm.append("model", MODEL);
-  groqForm.append("language", "es");
-  groqForm.append("response_format", "json");
+  const upstreamForm = new FormData();
+  upstreamForm.append("file", audio, filename);
+  upstreamForm.append("model", MODEL);
+  upstreamForm.append("language", "es");
+  upstreamForm.append("response_format", "json");
   // Pista de contexto para mejorar términos clínicos frecuentes.
-  groqForm.append(
+  upstreamForm.append(
     "prompt",
     "Dictado clínico de dermatología en español: pápulas, máculas, eritema, prurito, dermatoscopia, isotretinoína.",
   );
 
   const t0 = Date.now();
   try {
-    const resp = await fetch(GROQ_URL, {
+    const resp = await fetch(TRANSCRIBE_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
-      body: groqForm,
+      body: upstreamForm,
     });
     if (!resp.ok) {
       const body = await resp.text().catch(() => "");
       // eslint-disable-next-line no-console
       console.error(
-        `[transcribir] Groq ${resp.status}: ${body.slice(0, 300)}`,
+        `[transcribir] whisper ${resp.status}: ${body.slice(0, 300)}`,
       );
       return NextResponse.json(
         { error: "No pudimos transcribir el audio. Reintenta." },
