@@ -645,6 +645,7 @@ async function seedAll() {
         antecedentes: spec.antecedentes,
         medicacion_actual: spec.medicacion_actual,
         notas,
+        is_demo: true,
       })
       .select("id")
       .single();

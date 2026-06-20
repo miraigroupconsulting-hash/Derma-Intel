@@ -22,6 +22,38 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+/**
+ * Dynamic <title> per patient so the clinician can tell tabs apart.
+ * Privacy-conscious: apellido + inicial del nombre (no nombre completo)
+ * para no exponer identidad completa en el historial del navegador /
+ * el conmutador de pestañas de iOS. Si no hay sesión o no existe el
+ * paciente, cae a un título genérico (sin filtrar nada).
+ */
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<{ title: string }> {
+  try {
+    const { id } = await params;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { title: "Paciente" };
+    const { data } = await supabase
+      .from("pacientes")
+      .select("nombre, apellido")
+      .eq("id", id)
+      .maybeSingle();
+    if (!data) return { title: "Paciente" };
+    const inicial = data.nombre?.trim()?.[0]
+      ? `${data.nombre.trim()[0]}.`
+      : "";
+    return { title: `${data.apellido}, ${inicial}`.trim() };
+  } catch {
+    return { title: "Paciente" };
+  }
+}
+
 function calcEdad(fechaNac: string | null): string | null {
   if (!fechaNac) return null;
   const birth = new Date(fechaNac);

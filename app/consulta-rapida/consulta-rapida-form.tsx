@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { processImageToJpeg } from "@/lib/image";
+import { postJsonWithTimeout } from "@/lib/ai-request";
+import { AiProgress } from "@/components/ai-progress";
 import { AnalisisIaPanel } from "@/app/consulta/nueva/analisis-ia-panel";
 import type { AnalizarCasoResponse } from "@/app/consulta/schema";
 
@@ -124,24 +126,24 @@ export function ConsultaRapidaForm() {
     setAnalisis(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/ia/consulta-rapida", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contexto: contexto.trim(),
-          fotos: fotos.map((f) => ({
-            base64: f.base64,
-            mime: f.mime,
-            tipo: f.tipo,
-          })),
-        }),
+      const { ok, status, data } = await postJsonWithTimeout<
+        Record<string, unknown>
+      >("/api/ia/consulta-rapida", {
+        contexto: contexto.trim(),
+        fotos: fotos.map((f) => ({
+          base64: f.base64,
+          mime: f.mime,
+          tipo: f.tipo,
+        })),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error ?? `Error ${res.status}`);
+      const errMsg = typeof data.error === "string" ? data.error : null;
+      if (!ok || errMsg) {
+        throw new Error(errMsg ?? `Error ${status}`);
       }
-      setAnalisis(data as AnalizarCasoResponse);
+      setAnalisis(data as unknown as AnalizarCasoResponse);
     } catch (e) {
+      // postJsonWithTimeout lanza AiTimeoutError / AiNetworkError con
+      // mensaje en español accionable; cualquier otro error trae su msg.
       setError(e instanceof Error ? e.message : "Error al consultar la IA.");
     } finally {
       setLoading(false);
@@ -293,8 +295,11 @@ export function ConsultaRapidaForm() {
         </Button>
       </div>
 
+      {/* Progreso mientras la IA analiza (~30s) */}
+      {loading && <AiProgress expectedMs={30_000} />}
+
       {/* Result */}
-      {analisis && (
+      {analisis && !loading && (
         <div>
           <AnalisisIaPanel data={analisis} />
         </div>

@@ -113,6 +113,7 @@ async function upsertSeed() {
         antecedentes: "Rosácea papulopustulosa, brote inicial reportado en marzo 2026.",
         medicacion_actual: "Metronidazol 0.75% crema, 2 veces/día desde 28/03/2026.",
         notas: "Paciente demo creada por seed Día 7 (Mirai). Borrar con --delete.",
+        is_demo: true,
       })
       .select("id")
       .single();

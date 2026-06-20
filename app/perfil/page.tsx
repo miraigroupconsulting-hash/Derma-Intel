@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PerfilForm } from "./form";
+import { DemoCleanup } from "./demo-cleanup";
 import { BackLink } from "@/components/back-link";
 
 export const metadata = { title: "Mi perfil" };
@@ -22,6 +23,12 @@ export default async function PerfilPage() {
     )
     .eq("id", user.id)
     .single();
+
+  const { count: demoCount } = await supabase
+    .from("pacientes")
+    .select("id", { count: "exact", head: true })
+    .eq("medico_id", user.id)
+    .eq("is_demo", true);
 
   let logoUrl: string | null = null;
   let firmaUrl: string | null = null;
@@ -67,6 +74,8 @@ export default async function PerfilPage() {
         initialLogoUrl={logoUrl}
         initialFirmaUrl={firmaUrl}
       />
+
+      <DemoCleanup demoCount={demoCount ?? 0} />
     </main>
   );
 }

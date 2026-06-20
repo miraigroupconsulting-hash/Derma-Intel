@@ -7,13 +7,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { PacienteCombobox } from "@/components/paciente-combobox";
 import {
   abortDictation,
   dictationErrorMessage,
@@ -30,6 +24,8 @@ import {
 import { saveConsulta, type ConsultaActionState } from "../actions";
 import { PhotoUploader, type ConsultaPhoto } from "./photo-uploader";
 import { AnalisisIaPanel } from "./analisis-ia-panel";
+import { AiProgress } from "@/components/ai-progress";
+import { postJsonWithTimeout } from "@/lib/ai-request";
 import { BackLink } from "@/components/back-link";
 
 export interface PacienteLite {
@@ -313,10 +309,9 @@ export function NuevaConsultaForm({
         .filter(Boolean)
         .join("\n\n");
 
-      const res = await fetch("/api/ia/analizar-caso", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { ok, data } = await postJsonWithTimeout<Record<string, unknown>>(
+        "/api/ia/analizar-caso",
+        {
           paciente_id: pacienteId,
           motivo: motivo.trim() || undefined,
           contexto,
@@ -325,21 +320,26 @@ export function NuevaConsultaForm({
             tipo: p.tipo,
             zona_anatomica: p.zona_anatomica ?? null,
           })),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setAnalyzeError(
-          data.error_message ??
-            data.error ??
-            "No pudimos analizar con IA. Intenta de nuevo.",
-        );
+        },
+      );
+      const hasError = data.error === true || typeof data.error === "string";
+      if (!ok || hasError) {
+        const msg =
+          typeof data.error_message === "string"
+            ? data.error_message
+            : typeof data.error === "string"
+            ? data.error
+            : "No pudimos analizar con IA. Intenta de nuevo.";
+        setAnalyzeError(msg);
         return;
       }
-      setIaAnalisis(data as AnalizarCasoResponse);
-    } catch {
+      setIaAnalisis(data as unknown as AnalizarCasoResponse);
+    } catch (e) {
+      // AiTimeoutError / AiNetworkError traen mensaje en español accionable.
       setAnalyzeError(
-        "Error de red al hablar con la IA. Puedes seguir editando manualmente.",
+        e instanceof Error
+          ? e.message
+          : "Error de red al hablar con la IA. Puedes seguir editando manualmente.",
       );
     } finally {
       setIsAnalyzing(false);
@@ -425,22 +425,13 @@ export function NuevaConsultaForm({
           label="Volver"
         />
         <div className="flex-1 max-w-sm">
-          <Select
+          {/* Selector buscable (combobox propio, sin deps nuevas). Nunca
+              muestra el UUID — solo "Apellido, Nombre". */}
+          <PacienteCombobox
+            pacientes={pacientes}
             value={pacienteId}
-            onValueChange={(v) => setPacienteId(v ?? "")}
-            name="paciente_id"
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecciona paciente" />
-            </SelectTrigger>
-            <SelectContent>
-              {pacientes.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.apellido}, {p.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={setPacienteId}
+          />
         </div>
       </header>
 
@@ -521,6 +512,12 @@ export function NuevaConsultaForm({
             </p>
           )}
 
+          {isAnalyzing && (
+            <div className="mt-3">
+              <AiProgress expectedMs={30_000} />
+            </div>
+          )}
+
           {analyzeError && (
             <p
               className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700"
@@ -530,7 +527,7 @@ export function NuevaConsultaForm({
             </p>
           )}
 
-          {iaAnalisis && <AnalisisIaPanel data={iaAnalisis} />}
+          {iaAnalisis && !isAnalyzing && <AnalisisIaPanel data={iaAnalisis} />}
         </div>
       </section>
 

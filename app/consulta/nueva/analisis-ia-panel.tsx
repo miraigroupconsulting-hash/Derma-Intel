@@ -23,11 +23,8 @@ export function AnalisisIaPanel({ data }: { data: AnalizarCasoResponse }) {
         <h3 className="text-sm font-semibold uppercase tracking-wide">
           Sugerencia de la IA
         </h3>
-        {data.tokens_used && (
-          <span className="text-[0.65rem] text-neutral-500">
-            {data.tokens_used.total} tok · USD {data.tokens_used.estimated_cost_usd.toFixed(4)}
-          </span>
-        )}
+        {/* Tokens/costo NO se muestran al clínico — esa telemetría vive
+            solo en /mirai-admin (panel de Mirai Lab). */}
       </div>
 
       <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">

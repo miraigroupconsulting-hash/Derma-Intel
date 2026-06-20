@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AgendaView } from "./agenda-view";
+import { NuevaCita } from "./nueva-cita";
 import { BackLink } from "@/components/back-link";
 
 export const metadata = { title: "Agenda" };
@@ -75,6 +76,16 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     .lt("fecha_objetivo", `${weekEnd}T00:00:00Z`)
     .order("fecha_objetivo", { ascending: true });
 
+  // Pacientes para el selector de "Nueva cita" (no archivados, no demo).
+  const { data: pacientesData } = await supabase
+    .from("pacientes")
+    .select("id, nombre, apellido")
+    .eq("medico_id", user.id)
+    .eq("archivado", false)
+    .eq("is_demo", false)
+    .order("apellido", { ascending: true });
+  const pacientesCita = pacientesData ?? [];
+
   const eventos = (recs ?? []).map((r) => ({
     id: r.id,
     pacienteId: r.paciente_id,
@@ -97,27 +108,30 @@ export default async function AgendaPage({ searchParams }: PageProps) {
           <BackLink href="/dashboard" label="Dashboard" />
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">Agenda</h1>
         </div>
-        <div className="flex items-center gap-1 text-sm">
-          <Link
-            href={`/agenda?semana=${prev}`}
-            className="rounded-md border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
-            aria-label="Semana anterior"
-          >
-            ←
-          </Link>
-          <Link
-            href="/agenda"
-            className="rounded-md border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
-          >
-            Hoy
-          </Link>
-          <Link
-            href={`/agenda?semana=${next}`}
-            className="rounded-md border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
-            aria-label="Semana siguiente"
-          >
-            →
-          </Link>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 text-sm">
+            <Link
+              href={`/agenda?semana=${prev}`}
+              className="rounded-md border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
+              aria-label="Semana anterior"
+            >
+              ←
+            </Link>
+            <Link
+              href="/agenda"
+              className="rounded-md border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
+            >
+              Hoy
+            </Link>
+            <Link
+              href={`/agenda?semana=${next}`}
+              className="rounded-md border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
+              aria-label="Semana siguiente"
+            >
+              →
+            </Link>
+          </div>
+          <NuevaCita pacientes={pacientesCita} />
         </div>
       </header>
 

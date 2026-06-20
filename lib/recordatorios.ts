@@ -88,6 +88,29 @@ export function buildFechaObjetivo(
   return baseLocal;
 }
 
+/**
+ * Convierte una hora de pared local del médico ("YYYY-MM-DDTHH:mm",
+ * tal cual la entrega un <input type="datetime-local">) al instante UTC
+ * correspondiente en la zona horaria `tz`. Devuelve null si el string
+ * no parsea. Para Caracas (sin DST) es exacto; en zonas con DST hay un
+ * borde de ~1h solo en el instante de transición (aceptable para citas).
+ */
+export function wallClockToUtc(local: string, tz: string): Date | null {
+  const m = local.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const h = Number(m[4]);
+  const mi = Number(m[5]);
+  if ([y, mo, d, h, mi].some((n) => !Number.isFinite(n))) return null;
+  // Tratamos la hora de pared como si fuera UTC, luego restamos el
+  // offset de la TZ en ese instante para obtener el UTC real.
+  const guessUtc = new Date(Date.UTC(y, mo - 1, d, h, mi));
+  const offsetMin = getTzOffsetMinutes(guessUtc, tz);
+  return new Date(guessUtc.getTime() - offsetMin * 60000);
+}
+
 /** Offset en minutos de la zona horaria respecto a UTC en `at`. */
 function getTzOffsetMinutes(at: Date, tz: string): number {
   const dtf = new Intl.DateTimeFormat("en-US", {

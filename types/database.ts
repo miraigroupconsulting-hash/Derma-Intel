@@ -578,6 +578,7 @@ export type Database = {
           email: string | null
           fecha_nacimiento: string | null
           id: string
+          is_demo: boolean
           medicacion_actual: string | null
           medico_id: string
           nombre: string
@@ -597,6 +598,7 @@ export type Database = {
           email?: string | null
           fecha_nacimiento?: string | null
           id?: string
+          is_demo?: boolean
           medicacion_actual?: string | null
           medico_id: string
           nombre: string
@@ -616,6 +618,7 @@ export type Database = {
           email?: string | null
           fecha_nacimiento?: string | null
           id?: string
+          is_demo?: boolean
           medicacion_actual?: string | null
           medico_id?: string
           nombre?: string

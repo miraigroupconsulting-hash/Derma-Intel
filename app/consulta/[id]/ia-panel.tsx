@@ -378,17 +378,13 @@ export function IaPanel({ consultaId }: { consultaId: string }) {
               />
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-[0.65rem] text-neutral-500">
-                  {lastUsage && (
-                    <span>
-                      Última: {lastUsage.usage.total} tok · USD{" "}
-                      {lastUsage.usage.estimated_cost_usd.toFixed(4)} ·{" "}
-                      {Math.round(lastUsage.latency_ms / 100) / 10}s
-                      {lastUsage.disclaimer_injected && (
-                        <span title="El servidor inyectó el disclaimer al final">
-                          {" "}
-                          · ⚠ disclaimer inyectado
-                        </span>
-                      )}
+                  {/* Tokens/costo/latencia NO se muestran al clínico — esa
+                      telemetría vive solo en /mirai-admin. Conservamos solo
+                      el aviso de disclaimer inyectado (señal de seguridad
+                      clínica, no de costo). */}
+                  {lastUsage?.disclaimer_injected && (
+                    <span title="El servidor inyectó el disclaimer al final">
+                      ⚠ disclaimer inyectado
                     </span>
                   )}
                 </div>
