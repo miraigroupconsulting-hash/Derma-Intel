@@ -24,13 +24,29 @@ const PRIORIDAD_OPTIONS: { value: Prioridad; label: string }[] = [
   { value: "alta", label: "Alta" },
 ];
 
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
 /** "Mañana 09:00" en hora local del dispositivo, formato datetime-local. */
 function defaultFecha(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   d.setHours(9, 0, 0, 0);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/**
+ * Lunes (YYYY-MM-DD) de la semana que contiene la fecha local dada.
+ * Se usa para saltar la agenda a la semana de la cita recién creada,
+ * así la médica la ve al instante aunque sea de otra semana.
+ */
+function mondayOfLocalDate(local: string): string {
+  const m = local.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return "";
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const day = d.getDay(); // 0=domingo … 6=sábado
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
 export function NuevaCita({ pacientes }: { pacientes: PacienteOption[] }) {
@@ -71,8 +87,12 @@ export function NuevaCita({ pacientes }: { pacientes: PacienteOption[] }) {
         setError(res.error);
         return;
       }
+      // Saltar la agenda a la semana de la cita recién creada para que
+      // sea visible al instante (si es de otra semana, antes "desaparecía").
+      const week = mondayOfLocalDate(fecha);
       setOpen(false);
       reset();
+      if (week) router.push(`/agenda?semana=${week}`);
       router.refresh();
     });
   };
