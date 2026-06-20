@@ -156,6 +156,10 @@ const FALLBACK_LANGS = ["es-VE", "es-ES"] as const;
 
 let activeRecognition: SpeechRecognitionLike | null = null;
 let suppressNextEnd = false;
+// true solo cuando el médico pulsa "detener" (o abort). Mientras sea
+// false, reiniciamos el reconocimiento cada vez que el navegador lo
+// corta solo — así el dictado NO se cierra por una pausa (bug iOS).
+let userStopped = false;
 
 function attach(
   rec: SpeechRecognitionLike,
@@ -168,12 +172,22 @@ function attach(
   rec.lang = remainingLangs[0]!;
 
   rec.onresult = (ev) => {
+    // Acumulamos por evento el delta final y el interino por separado.
+    // Emitimos UN solo onTranscript final y uno interino, en vez de uno
+    // por resultado — reduce duplicación cuando el navegador reenvía.
+    let finalDelta = "";
+    let interim = "";
     for (let i = ev.resultIndex; i < ev.results.length; i++) {
       const res = ev.results[i]!;
       const alt = res[0];
       if (!alt) continue;
-      opts.onTranscript(alt.transcript, res.isFinal);
+      const t = alt.transcript.trim();
+      if (!t) continue;
+      if (res.isFinal) finalDelta += (finalDelta ? " " : "") + t;
+      else interim += (interim ? " " : "") + t;
     }
+    if (finalDelta) opts.onTranscript(finalDelta, true);
+    if (interim) opts.onTranscript(interim, false);
   };
 
   rec.onerror = (ev) => {
@@ -210,6 +224,13 @@ function attach(
       return;
     }
 
+    // Silencio / abort durante un reinicio interno: NO es un error real,
+    // dejamos que onend reinicie y seguimos escuchando.
+    if (code === "no-speech") return;
+    if (code === "aborted" && !userStopped) return;
+
+    // Errores terminales (permiso, micrófono, red): paramos de verdad.
+    userStopped = true;
     opts.onError?.({ code, message: SPANISH_ERROR_COPY[code] });
   };
 
@@ -218,9 +239,36 @@ function attach(
       suppressNextEnd = false;
       return;
     }
-    if (activeRecognition === rec) {
-      activeRecognition = null;
+    // Este reconocimiento ya fue reemplazado/abandonado (otra sesión
+    // arrancó). No reinicies ni dispares onEnd: silencio.
+    if (activeRecognition !== rec) return;
+
+    // Reinicio automático: el navegador corta el reconocimiento tras una
+    // pausa (sobre todo iOS Safari). Si el médico NO pulsó detener,
+    // arrancamos de nuevo para que el dictado sea continuo.
+    if (!userStopped) {
+      try {
+        rec.start();
+        return;
+      } catch {
+        // start() puede lanzar si se llama demasiado rápido; intentamos
+        // con una instancia fresca.
+        const ctor = getCtor();
+        if (ctor && !userStopped) {
+          const fresh = new ctor();
+          activeRecognition = fresh;
+          attach(fresh, opts, remainingLangs);
+          try {
+            fresh.start();
+            return;
+          } catch {
+            /* cae al cierre real abajo */
+          }
+        }
+      }
     }
+
+    activeRecognition = null;
     opts.onEnd?.();
   };
 }
@@ -234,15 +282,22 @@ export function startDictation(opts: StartDictationOptions): void {
     return;
   }
 
-  // If a previous session is still alive, abort it before starting a new one.
+  // If a previous session is still alive, abort it before starting a new
+  // one. Detach FIRST (activeRecognition = null) para que el onend del
+  // previo se vea como "abandonado" y no auto-reinicie ni dispare onEnd,
+  // tanto si onend llega síncrono como asíncrono.
   if (activeRecognition) {
+    const previo = activeRecognition;
+    activeRecognition = null;
     try {
-      activeRecognition.abort();
+      previo.abort();
     } catch {
       /* ignore */
     }
-    activeRecognition = null;
   }
+
+  userStopped = false;
+  suppressNextEnd = false;
 
   const ctor = getCtor()!;
   const rec = new ctor();
@@ -264,6 +319,9 @@ export function startDictation(opts: StartDictationOptions): void {
 }
 
 export function stopDictation(): void {
+  // Marca de parada explícita: evita el auto-reinicio en onend. El onend
+  // sí dispara opts.onEnd() para que la UI sepa que terminó.
+  userStopped = true;
   if (!activeRecognition) return;
   try {
     activeRecognition.stop();
@@ -273,6 +331,7 @@ export function stopDictation(): void {
 }
 
 export function abortDictation(): void {
+  userStopped = true;
   if (!activeRecognition) return;
   suppressNextEnd = true;
   try {
