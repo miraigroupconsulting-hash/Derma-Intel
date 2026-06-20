@@ -93,6 +93,8 @@ export const analizarCasoRequestSchema = z.object({
   contexto: z.string().max(8000).default(""),
   // Each photo is referenced by its current storage_path inside the
   // fotos-consultas bucket. The route downloads bytes server-side.
+  // Hasta 10: 5 clínicas + 5 dermatoscópicas (en la práctica se toman
+  // ambas del mismo caso).
   fotos: z
     .array(
       z.object({
@@ -101,7 +103,7 @@ export const analizarCasoRequestSchema = z.object({
         zona_anatomica: z.string().optional().nullable(),
       }),
     )
-    .max(5),
+    .max(10),
 });
 
 export type AnalizarCasoRequest = z.infer<typeof analizarCasoRequestSchema>;
@@ -283,6 +285,7 @@ export const saveConsultaSchema = z.object({
     .nullable(),
   // Photos are uploaded separately via uploadConsultaFoto before save.
   // Here we receive their final storage paths (already in the bucket).
+  // Hasta 10: 5 clínicas + 5 dermatoscópicas.
   fotos: z
     .array(
       z.object({
@@ -291,7 +294,7 @@ export const saveConsultaSchema = z.object({
         zona_anatomica: z.string().optional().nullable(),
       }),
     )
-    .max(5),
+    .max(10),
 });
 
 export type SaveConsultaInput = z.infer<typeof saveConsultaSchema>;
