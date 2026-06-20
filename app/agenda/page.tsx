@@ -1,14 +1,14 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AgendaView } from "./agenda-view";
 import { NuevaCita } from "./nueva-cita";
 import { BackLink } from "@/components/back-link";
+import { wallClockToUtc } from "@/lib/recordatorios";
 
 export const metadata = { title: "Agenda" };
 
 interface PageProps {
-  searchParams: Promise<{ semana?: string }>;
+  searchParams: Promise<{ semana?: string; vista?: string }>;
 }
 
 /**
@@ -46,7 +46,8 @@ function addDaysIso(dateIso: string, days: number): string {
 }
 
 export default async function AgendaPage({ searchParams }: PageProps) {
-  const { semana } = await searchParams;
+  const { semana, vista } = await searchParams;
+  const initialView = vista === "semana" ? "semana" : "proximas";
   const supabase = await createClient();
   const {
     data: { user },
@@ -76,6 +77,29 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     .lt("fecha_objetivo", `${weekEnd}T00:00:00Z`)
     .order("fecha_objetivo", { ascending: true });
 
+  // Vista "Próximas": TODAS las citas pendientes de hoy en adelante
+  // (no solo la semana visible), ordenadas por fecha. Es la vista por
+  // defecto: de un vistazo, todo lo que viene.
+  const todayYmd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(today);
+  const startTodayUtc = wallClockToUtc(`${todayYmd}T00:00`, tz) ?? today;
+
+  const { data: proxRecs } = await supabase
+    .from("recordatorios")
+    .select(
+      `id, paciente_id, fecha_objetivo, tipo, prioridad, mensaje, estado,
+       paciente:pacientes ( nombre, apellido )`,
+    )
+    .eq("medico_id", user.id)
+    .eq("estado", "pendiente")
+    .gte("fecha_objetivo", startTodayUtc.toISOString())
+    .order("fecha_objetivo", { ascending: true })
+    .limit(80);
+
   // Pacientes para el selector de "Nueva cita" (no archivados, no demo).
   const { data: pacientesData } = await supabase
     .from("pacientes")
@@ -86,7 +110,15 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     .order("apellido", { ascending: true });
   const pacientesCita = pacientesData ?? [];
 
-  const eventos = (recs ?? []).map((r) => ({
+  const toEvento = (r: {
+    id: string;
+    paciente_id: string | null;
+    fecha_objetivo: string;
+    tipo: string;
+    prioridad: "baja" | "media" | "alta";
+    mensaje: string | null;
+    paciente: { nombre: string; apellido: string } | null;
+  }) => ({
     id: r.id,
     pacienteId: r.paciente_id,
     pacienteNombre: r.paciente
@@ -96,46 +128,29 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     tipo: r.tipo,
     prioridad: r.prioridad,
     mensaje: r.mensaje,
-  }));
+  });
 
-  const prev = addDaysIso(weekStart, -7);
-  const next = addDaysIso(weekStart, 7);
+  const eventos = (recs ?? []).map(toEvento);
+  const proximas = (proxRecs ?? []).map(toEvento);
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 py-6">
+    <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6">
       <header className="mb-4 flex items-start justify-between gap-3">
         <div>
           <BackLink href="/dashboard" label="Dashboard" />
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">Agenda</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-sm">
-            <Link
-              href={`/agenda?semana=${prev}`}
-              className="rounded-md border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
-              aria-label="Semana anterior"
-            >
-              ←
-            </Link>
-            <Link
-              href="/agenda"
-              className="rounded-md border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
-            >
-              Hoy
-            </Link>
-            <Link
-              href={`/agenda?semana=${next}`}
-              className="rounded-md border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
-              aria-label="Semana siguiente"
-            >
-              →
-            </Link>
-          </div>
-          <NuevaCita pacientes={pacientesCita} />
-        </div>
+        <NuevaCita pacientes={pacientesCita} />
       </header>
 
-      <AgendaView weekStart={weekStart} tz={tz} eventos={eventos} />
+      <AgendaView
+        weekStart={weekStart}
+        tz={tz}
+        eventos={eventos}
+        proximas={proximas}
+        todayYmd={todayYmd}
+        initialView={initialView}
+      />
     </main>
   );
 }
