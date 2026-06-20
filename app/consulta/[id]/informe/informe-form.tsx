@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
 import {
   InformePdfDocument,
@@ -30,6 +31,21 @@ interface CamposConsulta {
   diagnostico_diferencial: string;
   plan_terapeutico: string;
 }
+
+// Secciones editables del informe (orden y etiqueta de presentación).
+const SECCIONES_INFORME: {
+  key: keyof InformeContenido;
+  label: string;
+  rows: number;
+}[] = [
+  { key: "motivo_consulta", label: "Motivo de consulta", rows: 2 },
+  { key: "antecedentes", label: "Antecedentes", rows: 2 },
+  { key: "anamnesis", label: "Anamnesis", rows: 3 },
+  { key: "examen_fisico", label: "Examen físico", rows: 3 },
+  { key: "diagnostico", label: "Diagnóstico / Impresión", rows: 2 },
+  { key: "plan", label: "Plan", rows: 3 },
+  { key: "recomendaciones", label: "Recomendaciones", rows: 2 },
+];
 
 interface InformePrevio {
   id: string;
@@ -141,6 +157,13 @@ export function InformeForm({
     }
   }, [iaCargado, consultaCampos, pacienteId, paciente]);
 
+  const updateCampo = useCallback(
+    (key: keyof InformeContenido, value: string) => {
+      setContenido((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
+
   const pdfDocument = useMemo(
     () => (
       <InformePdfDocument
@@ -236,6 +259,41 @@ export function InformeForm({
               </p>
             </div>
           </label>
+        </section>
+
+        {/* Contenido editable: la médica ajusta cualquier sección según su
+            criterio antes de generar. Alimenta el PDF en vivo (la vista
+            previa se actualiza). En móvil esta es la forma de ver/editar
+            el informe, ya que la vista previa PDF solo se muestra en
+            pantallas grandes. */}
+        <section className="rounded-md border border-neutral-200 bg-white p-4">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-brand-gray">
+            Contenido del informe
+          </h2>
+          <p className="mt-1 text-xs text-brand-gray">
+            Edita cualquier sección a tu criterio. Si activas la IA arriba, se
+            rellena con su redacción y luego puedes ajustarla.
+          </p>
+          <div className="mt-3 space-y-3">
+            {SECCIONES_INFORME.map((s) => (
+              <div key={s.key}>
+                <label
+                  htmlFor={`informe-${s.key}`}
+                  className="text-xs font-medium text-brand-ink"
+                >
+                  {s.label}
+                </label>
+                <Textarea
+                  id={`informe-${s.key}`}
+                  value={contenido[s.key]}
+                  onChange={(e) => updateCampo(s.key, e.target.value)}
+                  rows={s.rows}
+                  disabled={iaCargando || busy}
+                  className="mt-1 text-sm"
+                />
+              </div>
+            ))}
+          </div>
         </section>
 
         {error && (
