@@ -25,6 +25,7 @@ import { saveConsulta, type ConsultaActionState } from "../actions";
 import { PhotoUploader, type ConsultaPhoto } from "./photo-uploader";
 import { AnalisisIaPanel } from "./analisis-ia-panel";
 import { AiProgress } from "@/components/ai-progress";
+import { DictarButton } from "@/components/dictar-button";
 import { postJsonWithTimeout } from "@/lib/ai-request";
 import { BackLink } from "@/components/back-link";
 
@@ -532,13 +533,12 @@ export function NuevaConsultaForm({
 
       <section className="mb-5">
         <GlobalDictationPanel
-          active={active === "global"}
-          onToggle={() => toggleFor("global")}
           transcript={globalTranscript}
-          interim={active === "global" ? interim : ""}
           onChange={setGlobalTranscript}
           onClear={clearGlobalTranscript}
-          voiceError={active === null ? voiceError : null}
+          onAppend={(t) =>
+            setGlobalTranscript((prev) => (prev ? `${prev} ${t}`.trim() : t))
+          }
         />
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -678,21 +678,15 @@ export function NuevaConsultaForm({
  * four S/O/A/P fields.
  */
 function GlobalDictationPanel({
-  active,
-  onToggle,
   transcript,
-  interim,
   onChange,
   onClear,
-  voiceError,
+  onAppend,
 }: {
-  active: boolean;
-  onToggle: () => void;
   transcript: string;
-  interim: string;
   onChange: (value: string) => void;
   onClear: () => void;
-  voiceError: string | null;
+  onAppend: (text: string) => void;
 }) {
   return (
     <div className="rounded-lg border-2 border-dashed border-neutral-300 bg-neutral-50 p-3">
@@ -702,11 +696,11 @@ function GlobalDictationPanel({
             Dictado libre
           </p>
           <p className="text-xs text-neutral-500">
-            Habla todo de corrido. La IA lo reorganiza en S/O/A/P abajo
-            cuando das tap a “Estructurar con IA”.
+            Habla un tramo y pulsa “Detener”: se transcribe con IA y se
+            agrega abajo. Luego “Estructurar con IA” lo reorganiza en S/O/A/P.
           </p>
         </div>
-        {transcript && !active && (
+        {transcript && (
           <button
             type="button"
             onClick={onClear}
@@ -717,29 +711,16 @@ function GlobalDictationPanel({
         )}
       </div>
 
-      <Button
-        type="button"
-        size="lg"
-        variant={active ? "destructive" : "default"}
-        onClick={onToggle}
-        className="h-14 w-full text-base"
-      >
-        {active ? "■ Parar dictado" : "🎤 Dictar todo"}
-      </Button>
+      {/* Dictado por voz tipo Wispr: graba → transcribe (Whisper) → agrega. */}
+      <DictarButton label="Dictar todo" size="lg" onText={onAppend} />
 
       <Textarea
         rows={4}
-        value={transcript + (interim ? ` ${interim}` : "")}
+        value={transcript}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Aquí queda el dictado crudo. También puedes escribir directo."
+        placeholder="Aquí queda el dictado transcrito. También puedes escribir directo."
         className="mt-3 bg-white"
       />
-
-      {voiceError && (
-        <p className="mt-2 text-xs text-red-600" role="alert">
-          {voiceError}
-        </p>
-      )}
     </div>
   );
 }
