@@ -247,6 +247,146 @@ async function main() {
     else ok("A can UPDATE own paciente");
   }
 
+  // ====================================================================
+  // Cross-tenant denial on EVERY child PHI table.
+  // Seed one row of each for médico B (B's own client, RLS allows), then
+  // assert médico A querying that row by id returns 0 rows. This is the
+  // "requesting X owned by another user returns no rows" proof the audit
+  // asked for, generalized beyond pacientes.
+  // ====================================================================
+  console.log("\n[3b/4] Cross-tenant denial on child PHI tables...");
+
+  type PhiChildTable =
+    | "consultas"
+    | "fotos"
+    | "recipes"
+    | "recordatorios"
+    | "notificaciones"
+    | "comparaciones"
+    | "informes";
+  const bPaciente = b.pacienteIds[0]!;
+  const childIds: Partial<Record<PhiChildTable, string>> = {};
+
+  // consultas
+  {
+    const { data, error } = await b.client
+      .from("consultas")
+      .insert({ medico_id: b.id, paciente_id: bPaciente, motivo: "RLS test" })
+      .select("id")
+      .single();
+    if (error || !data) fail("seed B consulta", error?.message);
+    else childIds.consultas = data.id;
+  }
+  // fotos (two — needed for comparaciones)
+  const bFotoIds: string[] = [];
+  for (let i = 0; i < 2; i++) {
+    const { data, error } = await b.client
+      .from("fotos")
+      .insert({
+        medico_id: b.id,
+        paciente_id: bPaciente,
+        consulta_id: childIds.consultas ?? null,
+        storage_path: `${b.id}/rls-test/foto-${i}.jpg`,
+        tipo: "clinica",
+      })
+      .select("id")
+      .single();
+    if (error || !data) fail(`seed B foto ${i}`, error?.message);
+    else bFotoIds.push(data.id);
+  }
+  if (bFotoIds[0]) childIds.fotos = bFotoIds[0];
+  // recipes
+  if (childIds.consultas) {
+    const { data, error } = await b.client
+      .from("recipes")
+      .insert({
+        medico_id: b.id,
+        paciente_id: bPaciente,
+        consulta_id: childIds.consultas,
+        medicamentos: [],
+      })
+      .select("id")
+      .single();
+    if (error || !data) fail("seed B recipe", error?.message);
+    else childIds.recipes = data.id;
+  }
+  // recordatorios
+  {
+    const { data, error } = await b.client
+      .from("recordatorios")
+      .insert({
+        medico_id: b.id,
+        paciente_id: bPaciente,
+        tipo: "control",
+        fecha_objetivo: new Date(Date.now() + 86400000).toISOString(),
+      })
+      .select("id")
+      .single();
+    if (error || !data) fail("seed B recordatorio", error?.message);
+    else childIds.recordatorios = data.id;
+  }
+  // notificaciones
+  {
+    const { data, error } = await b.client
+      .from("notificaciones")
+      .insert({
+        medico_id: b.id,
+        paciente_id: bPaciente,
+        tipo: "alerta",
+        titulo: "RLS test",
+      })
+      .select("id")
+      .single();
+    if (error || !data) fail("seed B notificacion", error?.message);
+    else childIds.notificaciones = data.id;
+  }
+  // comparaciones
+  if (bFotoIds[0] && bFotoIds[1]) {
+    const { data, error } = await b.client
+      .from("comparaciones")
+      .insert({
+        medico_id: b.id,
+        paciente_id: bPaciente,
+        foto_antes_id: bFotoIds[0],
+        foto_despues_id: bFotoIds[1],
+      })
+      .select("id")
+      .single();
+    if (error || !data) fail("seed B comparacion", error?.message);
+    else childIds.comparaciones = data.id;
+  }
+  // informes
+  if (childIds.consultas) {
+    const { data, error } = await b.client
+      .from("informes")
+      .insert({
+        medico_id: b.id,
+        paciente_id: bPaciente,
+        consulta_id: childIds.consultas,
+      })
+      .select("id")
+      .single();
+    if (error || !data) fail("seed B informe", error?.message);
+    else childIds.informes = data.id;
+  }
+
+  ok(`seeded ${Object.keys(childIds).length} child rows for B`);
+
+  // A must see ZERO of B's child rows on every table.
+  for (const [table, rowId] of Object.entries(childIds) as [
+    PhiChildTable,
+    string,
+  ][]) {
+    const { data, error } = await a.client
+      .from(table)
+      .select("id")
+      .eq("id", rowId);
+    if (error) fail(`A: select foreign ${table} errored`, error.message);
+    else if ((data ?? []).length === 0)
+      ok(`A cannot read B's ${table} by id (0 rows)`);
+    else fail(`A leaked B's ${table}!`, data);
+  }
+
   console.log("\n[4/4] Cleanup...");
   await deleteTestUser(a);
   await deleteTestUser(b);
