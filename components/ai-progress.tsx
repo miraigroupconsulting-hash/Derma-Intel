@@ -20,7 +20,7 @@ const DEFAULT_STAGES = [
 ];
 
 export function AiProgress({
-  expectedMs = 30_000,
+  expectedMs = 40_000,
   stages = DEFAULT_STAGES,
 }: {
   expectedMs?: number;
@@ -72,8 +72,8 @@ export function AiProgress({
         />
       </div>
       <p className="mt-2 text-xs text-neutral-500">
-        El análisis con imágenes suele tomar ~30 segundos. No cierres esta
-        pantalla.
+        El análisis con imágenes suele tomar entre 30 y 50 segundos. No
+        cierres esta pantalla.
       </p>
     </div>
   );

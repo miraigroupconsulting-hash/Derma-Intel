@@ -295,8 +295,8 @@ export function ConsultaRapidaForm() {
         </Button>
       </div>
 
-      {/* Progreso mientras la IA analiza (~30s) */}
-      {loading && <AiProgress expectedMs={30_000} />}
+      {/* Progreso mientras la IA analiza (~40s) */}
+      {loading && <AiProgress expectedMs={40_000} />}
 
       {/* Result */}
       {analisis && !loading && (

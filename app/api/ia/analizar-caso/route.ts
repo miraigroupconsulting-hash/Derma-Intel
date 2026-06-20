@@ -11,6 +11,11 @@ import {
 } from "@/app/consulta/schema";
 import type { Database } from "@/types/database";
 
+// Visión + tool use puede tardar ~40-50s; fijamos el máximo de función
+// serverless (60s en Vercel Hobby) para que la respuesta vuelva. El
+// prompt pide brevedad para mantener la latencia bajo ese techo.
+export const maxDuration = 60;
+
 // =====================================================================
 // Pricing (USD per million tokens). claude-sonnet-4-6 list.
 // Update when Anthropic moves prices.
@@ -63,7 +68,7 @@ REGLAS INVIOLABLES:
 5. Para embarazo / lactancia / pediatría: ajusta dosis y advierte categoría de riesgo.
 6. NUNCA inventes hallazgos que no están en la imagen. Si el médico te describe algo que tú no ves, refléjalo como "según descripción del médico (no evaluable en imagen)".
 7. NUNCA repitas PII (nombre, cédula, teléfono, dirección) aunque te llegue en el contexto. Refiérete como "el paciente" o "la paciente".
-8. Output: ÚNICAMENTE el JSON. Sin markdown, sin texto adicional, sin disclaimers. Sin envolver en triple-backtick.
+8. BREVEDAD OBLIGATORIA (la médica trabaja entre pacientes y necesita la lectura rápida): cada campo en 1-2 frases cortas y telegráficas. Máximo 3 diferenciales salvo necesidad clínica clara. No repitas información entre campos ni agregues relleno. Mantén el registro técnico, pero conciso.
 9. Si no tienes una referencia bibliográfica firme, no la cites. No inventes papers.
 
 LENGUAJE OBLIGATORIO — Médico-técnico formal LATAM, sin coloquialismos:
@@ -244,7 +249,9 @@ export async function POST(req: Request) {
   try {
     const response = await runStructuredClinicalCall({
       mode: "CASO_CLINICO",
-      maxTokens: 3500,
+      // Brevedad pedida → output ~1600-2000 tok; 2400 da margen para que
+      // el tool call cierre sin truncar. Latencia ~40-48s, bajo el techo.
+      maxTokens: 2400,
       tool: {
         name: "emitir_analisis",
         description:

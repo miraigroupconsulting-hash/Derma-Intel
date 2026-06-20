@@ -514,7 +514,7 @@ export function NuevaConsultaForm({
 
           {isAnalyzing && (
             <div className="mt-3">
-              <AiProgress expectedMs={30_000} />
+              <AiProgress expectedMs={40_000} />
             </div>
           )}
 

@@ -31,6 +31,12 @@ import {
 } from "@/app/consulta/schema";
 import type { Database } from "@/types/database";
 
+// El análisis con visión + tool use puede tardar ~40-50s. El default de
+// función serverless en Vercel Hobby es bajo; lo fijamos al máximo (60s)
+// para que la respuesta alcance a volver. El prompt pide brevedad para
+// mantener la latencia real bien por debajo de este techo.
+export const maxDuration = 60;
+
 const SONNET_INPUT_USD_PER_MTOK = 3.0;
 const SONNET_OUTPUT_USD_PER_MTOK = 15.0;
 const costUsd = (inT: number, outT: number) =>
@@ -80,7 +86,7 @@ REGLAS INVIOLABLES:
 4. Para sustancias controladas (corticoides sistémicos prolongados, isotretinoína, inmunosupresores) marca "Requiere confirmación del médico" antes de cualquier posología.
 5. Como NO hay paciente identificado, NO asumas edad, sexo, antecedentes ni fototipo a menos que el médico los mencione en contexto. Si la decisión clínica depende de esos datos, dilo: "Conducta depende de edad/comorbilidades a confirmar".
 6. NUNCA inventes hallazgos que no están en la imagen.
-7. Sé conciso: frases clínicas, no párrafos largos. Cada campo en su justa medida.
+7. BREVEDAD OBLIGATORIA (la médica está entre pacientes y necesita la lectura rápida): cada campo de texto en 1-2 frases cortas, telegráficas. Máximo 3 diagnósticos diferenciales salvo necesidad clínica clara. No repitas información entre campos. Términos técnicos sí, pero sin relleno ni párrafos largos.
 8. Si no tienes referencia bibliográfica firme, no la cites.
 
 LENGUAJE OBLIGATORIO — Médico-técnico formal LATAM, sin coloquialismos:
@@ -161,7 +167,10 @@ export async function POST(req: Request) {
   try {
     const response = await runStructuredClinicalCall({
       mode: "CASO_CLINICO",
-      maxTokens: 3000,
+      // Con la brevedad pedida el output natural ronda ~1500-1800 tok.
+      // 2200 da margen para que el tool call cierre sin truncar, y la
+      // latencia queda ~35-45s (cómoda bajo el techo de 60s).
+      maxTokens: 2200,
       systemPromptOverride: SYSTEM_PROMPT,
       tool: {
         name: "emitir_analisis",

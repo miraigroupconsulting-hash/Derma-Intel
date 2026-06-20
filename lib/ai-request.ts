@@ -25,8 +25,15 @@ export class AiNetworkError extends Error {
   }
 }
 
-/** Default timeout. Las llamadas con visión rondan 30s; 45s da margen. */
-export const AI_TIMEOUT_MS = 45_000;
+/**
+ * Default timeout del cliente. Las llamadas con visión + tool use pueden
+ * tardar ~40-55s (Sonnet genera el análisis estructurado completo). El
+ * límite de función serverless en Vercel es 60s, así que ponemos el
+ * timeout del cliente en 75s: cubre cualquier respuesta que el server
+ * alcance a devolver (≤60s) con margen de red, sin abortar antes de
+ * tiempo como pasaba con 45s.
+ */
+export const AI_TIMEOUT_MS = 75_000;
 
 /**
  * POST JSON a un endpoint con timeout vía AbortController.
