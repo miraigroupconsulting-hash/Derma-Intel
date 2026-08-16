@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
+import { verificarLicencia } from "@/lib/licencia";
 
 /**
  * Refresh the Supabase session on every request and enforce gates:
@@ -67,6 +68,19 @@ export async function updateSession(request: NextRequest) {
     const dashUrl = request.nextUrl.clone();
     dashUrl.pathname = "/dashboard";
     return NextResponse.redirect(dashUrl);
+  }
+
+  // Licencia gate: si Mirai apagó a este médico (falta de pago), a /pausa.
+  // El panel de suscripciones manda; /mirai-admin queda siempre accesible para Fer.
+  // Si el panel no responde, verificarLicencia() devuelve activa=true (fail-open).
+  if (user && isProtected && !pathname.startsWith("/mirai-admin")) {
+    const { activa, mensaje } = await verificarLicencia(user.id, user.email);
+    if (!activa) {
+      const pausaUrl = request.nextUrl.clone();
+      pausaUrl.pathname = "/pausa";
+      pausaUrl.search = mensaje ? `?motivo=${encodeURIComponent(mensaje)}` : "";
+      return NextResponse.redirect(pausaUrl);
+    }
   }
 
   // Onboarding gate: any authenticated route except /onboarding itself
