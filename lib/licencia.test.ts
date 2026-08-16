@@ -58,6 +58,16 @@ describe("verificarLicencia", () => {
     expect(f).toHaveBeenCalledTimes(1);
   });
 
+  it("dos aparatos distintos del mismo médico se reportan por separado (censo de cuentas compartidas)", async () => {
+    const f = vi.fn().mockResolvedValue({ json: async () => ({ activa: true }) });
+    vi.stubGlobal("fetch", f);
+    const verificar = await fresco();
+    await verificar("medico-7", "ana@clinica.com", { ip: "1.1.1.1", agente: "iPhone" });
+    await verificar("medico-7", "ana@clinica.com", { ip: "2.2.2.2", agente: "Windows" });
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(String(f.mock.calls[1][0])).toContain("ip=2.2.2.2");
+  });
+
   it("manda tenant y nombre para que el panel registre al cliente", async () => {
     const f = vi.fn().mockResolvedValue({ json: async () => ({ activa: true }) });
     vi.stubGlobal("fetch", f);

@@ -74,7 +74,10 @@ export async function updateSession(request: NextRequest) {
   // El panel de suscripciones manda; /mirai-admin queda siempre accesible para Fer.
   // Si el panel no responde, verificarLicencia() devuelve activa=true (fail-open).
   if (user && isProtected && !pathname.startsWith("/mirai-admin")) {
-    const { activa, mensaje } = await verificarLicencia(user.id, user.email);
+    const { activa, mensaje } = await verificarLicencia(user.id, user.email, {
+      ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim(),
+      agente: request.headers.get("user-agent"),
+    });
     if (!activa) {
       const pausaUrl = request.nextUrl.clone();
       pausaUrl.pathname = "/pausa";

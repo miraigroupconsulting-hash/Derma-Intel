@@ -26,17 +26,37 @@ export interface Licencia {
 
 const cache = new Map<string, { hasta: number; valor: Licencia }>();
 
+/** Datos del visitante para el censo del panel: quién entró y desde qué aparato.
+ *  El "aparato" es IP + navegador — no identifica personas, sirve para detectar una
+ *  misma cuenta usada por varios a la vez. Este chequeo corre en el servidor, así que
+ *  la app tiene que pasar la IP/navegador del cliente: si no, se vería siempre Vercel. */
+export interface Visitante {
+  ip?: string | null;
+  agente?: string | null;
+}
+
 export async function verificarLicencia(
   tenant: string,
   nombre?: string | null,
+  visitante?: Visitante,
 ): Promise<Licencia> {
+  // La caché es por tenant Y aparato: si dos personas comparten la cuenta, cada una
+  // se reporta al panel (que es justo lo que queremos ver) en vez de taparse entre sí.
+  const clave = `${tenant}|${visitante?.ip ?? ""}|${visitante?.agente ?? ""}`;
   const ahora = Date.now();
-  const hit = cache.get(tenant);
+  const hit = cache.get(clave);
   if (hit && hit.hasta > ahora) return hit.valor;
 
   const url = new URL(`${BASE}/${encodeURIComponent(APP_KEY)}`);
   if (tenant) url.searchParams.set("tenant", tenant);
   if (nombre) url.searchParams.set("nombre", nombre);
+  if (nombre) {
+    // en estas apps el tenant ES el profesional: el usuario del censo es su email
+    url.searchParams.set("usuario", nombre);
+    url.searchParams.set("nombre_usuario", nombre);
+  }
+  if (visitante?.ip) url.searchParams.set("ip", visitante.ip);
+  if (visitante?.agente) url.searchParams.set("agente", visitante.agente.slice(0, 180));
 
   let valor: Licencia = { activa: true, mensaje: "" };
   try {
@@ -49,6 +69,6 @@ export async function verificarLicencia(
   } catch {
     valor = { activa: true, mensaje: "" }; // fail-open
   }
-  cache.set(tenant, { hasta: ahora + TTL_MS, valor });
+  cache.set(clave, { hasta: ahora + TTL_MS, valor });
   return valor;
 }
