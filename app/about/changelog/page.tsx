@@ -1,40 +1,8 @@
 import Link from "next/link";
 import { LogoLockup } from "@/components/logo";
+import { RELEASES } from "@/lib/releases";
 
 export const metadata = { title: "Notas de versión" };
-
-interface Release {
-  version: string;
-  fecha: string;
-  highlight: string;
-  incluye: string[];
-  proximamente?: string[];
-}
-
-const RELEASES: Release[] = [
-  {
-    version: "1.0",
-    fecha: "Mayo 2026",
-    highlight: "🎉 Lanzamiento inicial de DERMA INTEL Pro",
-    incluye: [
-      "Gestión completa de pacientes con historia clínica",
-      "Dictado por voz con estructuración SOAP automática",
-      "IA clínica especializada con 6 modos (Caso, Express, Bibliografía, Histopatología, Terapéutica, Docente)",
-      "Récipes profesionales en PDF con firma digital + envío por WhatsApp",
-      "Galería de evolución con comparación lado a lado + exportación con anonimización facial",
-      "Recordatorios automáticos + sistema de alertas inteligentes",
-      "Dashboard proactivo con resumen diario y notificaciones",
-      "Agenda semanal de citas y controles",
-      "Funcionamiento offline (récipes se sincronizan al recuperar señal)",
-    ],
-    proximamente: [
-      "Biblioteca personal de papers y guías clínicas (RAG)",
-      "Digest semanal automático de actualizaciones médicas",
-      "Integración con Gamma para presentaciones académicas",
-      "Análisis avanzado de imagen dermatoscópica multi-modal",
-    ],
-  },
-];
 
 export default function ChangelogPage() {
   return (

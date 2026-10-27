@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PendingRecipesPill } from "@/components/pending-recipes-pill";
+import { NovedadesCard } from "@/components/novedades-card";
 import { NotificationBell } from "@/components/notification-bell";
 import { AlertasPanel } from "@/components/alertas-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -82,6 +83,8 @@ export default async function DashboardPage() {
         </div>
       </header>
 
+      <NovedadesCard />
+
       <div className="mb-4">
         <PendingRecipesPill />
       </div>
@@ -123,33 +126,53 @@ export default async function DashboardPage() {
         <AlertasPanel alertasTop={dashboard.alertasTop} alertasMas={dashboard.alertasMas} />
       </div>
 
-      <div
-        className={
-          SPECIALTY.features.consultaRapida
-            ? "mb-6 grid gap-3 sm:grid-cols-[2fr_1fr]"
-            : "mb-6"
-        }
-      >
-        <Link
-          href="/consulta/nueva"
+      <div className="mb-6">
+        <div
           className={
-            buttonVariants({ size: "lg" }) +
-            " flex h-14 w-full items-center justify-center text-base"
+            SPECIALTY.features.consultaRapida
+              ? "grid gap-3 sm:grid-cols-[2fr_1fr]"
+              : ""
           }
         >
-          🎤 Nueva consulta
-        </Link>
-        {SPECIALTY.features.consultaRapida && (
+          <div>
+            <Link
+              href="/consulta/nueva"
+              className={
+                buttonVariants({ size: "lg" }) +
+                " flex h-14 w-full items-center justify-center text-base"
+              }
+            >
+              🎤 Nueva consulta
+            </Link>
+            <p className="mt-1.5 text-center text-xs text-brand-gray">
+              Guarda el caso completo del paciente
+            </p>
+          </div>
+          {SPECIALTY.features.consultaRapida && (
+            <div>
+              <Link
+                href="/consulta-rapida"
+                className={
+                  buttonVariants({ size: "lg", variant: "outline" }) +
+                  " flex h-14 w-full items-center justify-center text-base"
+                }
+              >
+                ⚡ Consulta rápida
+              </Link>
+              <p className="mt-1.5 text-center text-xs text-brand-gray">
+                Una foto, una lectura — sin registrar nada
+              </p>
+            </div>
+          )}
+        </div>
+        <p className="mt-3 text-center text-xs">
           <Link
-            href="/consulta-rapida"
-            className={
-              buttonVariants({ size: "lg", variant: "outline" }) +
-              " flex h-14 items-center justify-center text-base"
-            }
+            href="/ayuda"
+            className="text-brand-secondary underline-offset-4 hover:underline"
           >
-            ⚡ Consulta rápida
+            ¿Primera vez? 📘 Ver guía rápida (2 min)
           </Link>
-        )}
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -176,6 +199,23 @@ export default async function DashboardPage() {
                   </li>
                 ))}
               </ul>
+            )}
+            {pacientesCount === 0 && (
+              <div className="rounded-lg bg-brand-cream p-3 text-sm dark:bg-brand-ink/40">
+                <p className="font-medium text-brand-ink dark:text-brand-cream">
+                  ¿Primera vez? No registres nada todavía.
+                </p>
+                <p className="mt-1 text-brand-gray">
+                  Haz una{" "}
+                  <Link
+                    href="/consulta-rapida"
+                    className="font-medium text-brand-secondary underline-offset-4 hover:underline"
+                  >
+                    Consulta rápida
+                  </Link>{" "}
+                  con una foto de hoy — 30 segundos y ves para qué sirve.
+                </p>
+              </div>
             )}
             <div className="flex flex-col gap-2 pt-2">
               <Link
@@ -220,6 +260,10 @@ export default async function DashboardPage() {
         tratante.
       </p>
       <p className="mt-2 text-center text-xs text-brand-gray">
+        <Link href="/ayuda" className="underline-offset-4 hover:underline">
+          Guía rápida
+        </Link>
+        <span className="mx-2">·</span>
         <Link href="/about" className="underline-offset-4 hover:underline">
           Acerca de DERMA INTEL Pro
         </Link>
