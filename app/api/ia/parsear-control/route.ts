@@ -23,8 +23,8 @@ import { runClinicalCall } from "@/lib/claude";
 import { anonymizeText } from "@/lib/anonimizar";
 import type { Database } from "@/types/database";
 
-const HAIKU_INPUT_USD_PER_MTOK = 1.0;
-const HAIKU_OUTPUT_USD_PER_MTOK = 5.0;
+const HAIKU_INPUT_USD_PER_MTOK = 0.1;
+const HAIKU_OUTPUT_USD_PER_MTOK = 0.5;
 const costUsd = (inT: number, outT: number) =>
   (inT * HAIKU_INPUT_USD_PER_MTOK) / 1_000_000 +
   (outT * HAIKU_OUTPUT_USD_PER_MTOK) / 1_000_000;

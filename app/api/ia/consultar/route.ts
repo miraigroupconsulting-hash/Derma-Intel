@@ -43,6 +43,8 @@ import type { Database } from "@/types/database";
 // Pricing (USD per million tokens). Update when Anthropic moves prices.
 // =====================================================================
 const PRICING = {
+  "claude-sonnet-5-5": { input: 2.0, output: 10.0 },
+  "claude-haiku-5-5": { input: 0.1, output: 0.5 },
   "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
   "claude-haiku-4-5": { input: 1.0, output: 5.0 },
 } as const;

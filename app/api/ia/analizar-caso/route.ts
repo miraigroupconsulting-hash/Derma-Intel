@@ -17,11 +17,11 @@ import type { Database } from "@/types/database";
 export const maxDuration = 60;
 
 // =====================================================================
-// Pricing (USD per million tokens). claude-sonnet-4-6 list.
+// Pricing (USD per million tokens). claude-sonnet-5-5 list.
 // Update when Anthropic moves prices.
 // =====================================================================
-const SONNET_INPUT_USD_PER_MTOK = 3.0;
-const SONNET_OUTPUT_USD_PER_MTOK = 15.0;
+const SONNET_INPUT_USD_PER_MTOK = 2.0;
+const SONNET_OUTPUT_USD_PER_MTOK = 10.0;
 
 function estimateCostUsd(inputTokens: number, outputTokens: number): number {
   return (
@@ -249,9 +249,9 @@ export async function POST(req: Request) {
   try {
     const response = await runStructuredClinicalCall({
       mode: "CASO_CLINICO",
-      // Brevedad pedida → output ~1600-2000 tok; 2400 da margen para que
-      // el tool call cierre sin truncar. Latencia ~40-48s, bajo el techo.
-      maxTokens: 2400,
+      // Output ~1600-2000 tok; el tokenizer de los modelos 5.x cuenta ~30%
+      // más, así que 3200 da margen para cerrar el JSON sin truncar.
+      maxTokens: 3200,
       tool: {
         name: "emitir_analisis",
         description:

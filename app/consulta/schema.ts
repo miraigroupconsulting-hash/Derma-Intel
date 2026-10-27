@@ -172,6 +172,7 @@ export const EMPTY_ANALIZAR: AnalizarCasoResponse = {
  */
 export const ANALISIS_TOOL_INPUT_SCHEMA = {
   type: "object",
+  additionalProperties: false,
   properties: {
     lectura_imagen: {
       type: "string",
@@ -188,6 +189,7 @@ export const ANALISIS_TOOL_INPUT_SCHEMA = {
         "Diagnósticos diferenciales ordenados por probabilidad. Vacío si la imagen es insuficiente.",
       items: {
         type: "object",
+        additionalProperties: false,
         properties: {
           nombre: { type: "string" },
           probabilidad: { type: "string", enum: ["alta", "media", "baja"] },

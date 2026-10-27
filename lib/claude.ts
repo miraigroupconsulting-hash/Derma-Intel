@@ -95,9 +95,9 @@ export type ModelTask = "clinical" | "light" | "vision";
 /**
  * Pick the right Claude model for the task.
  *
- *   clinical → claude-sonnet-4-6 (deep reasoning, costlier)
- *   light    → claude-haiku-4-5  (fast/cheap, classification/parsing)
- *   vision   → claude-sonnet-4-6 (image analysis needs the larger model)
+ *   clinical → claude-sonnet-5-5 (deep reasoning, costlier)
+ *   light    → claude-haiku-5-5  (fast/cheap, classification/parsing)
+ *   vision   → claude-sonnet-5-5 (image analysis needs the larger model)
  *
  * Express mode uses Haiku; everything else uses Sonnet.
  * Update model IDs here when Anthropic ships new versions.
@@ -105,17 +105,29 @@ export type ModelTask = "clinical" | "light" | "vision";
 export function pickModel(task: ModelTask): string {
   switch (task) {
     case "light":
-      return "claude-haiku-4-5";
+      return "claude-haiku-5-5";
     case "clinical":
     case "vision":
-      return "claude-sonnet-4-6";
+      return "claude-sonnet-5-5";
   }
 }
 
 /**
+ * Minimal-thinking config per model, so responses stay as snappy and cheap
+ * as before the 5.x upgrade (no up-front "thinking"). The 5.x families need
+ * different "off" settings: Sonnet/Opus take `between_tools`, Haiku takes
+ * `disabled`, and each rejects the other with a 400.
+ */
+function minThinking(model: string) {
+  return model.startsWith("claude-haiku")
+    ? { type: "disabled" as const }
+    : { type: "between_tools" as const };
+}
+
+/**
  * Routing per CLAUDE.md §4 + Day 4 brief:
- *   Haiku 4.5 (light) → Express, Terapéutica
- *   Sonnet 4.6 (clinical/vision) → Caso Clínico, Bibliografía,
+ *   Haiku 5.5 (light) → Express, Terapéutica
+ *   Sonnet 5.5 (clinical/vision) → Caso Clínico, Bibliografía,
  *                                  Histopatología, Docente
  */
 export function pickModelForMode(mode: ClinicalMode): string {
@@ -198,7 +210,8 @@ export async function runClinicalCall(input: ClinicalCallInput) {
     max_tokens: input.maxTokens ?? 2048,
     system,
     messages: input.userMessages,
-  });
+    thinking: minThinking(model),
+  } as Anthropic.MessageCreateParamsNonStreaming);
 }
 
 // ---------------------------------------------------------------------
@@ -250,30 +263,40 @@ export async function runStructuredClinicalCall(
   const system = input.systemPromptOverride ?? (await loadSystemPrompt());
   const model = input.modelOverride ?? pickModelForMode(input.mode);
 
+  // Structured output via output_config.format (json_schema). The 5.x models
+  // no longer accept a forced tool_choice; this is the supported replacement
+  // and still guarantees a schema-valid JSON object. The answer arrives as a
+  // single text block of JSON, so we parse it back into the object callers
+  // already expect on `.input`.
   const resp = await client().messages.create({
     model,
     max_tokens: input.maxTokens ?? 3000,
     system,
     messages: input.userMessages,
-    tools: [
-      {
-        name: input.tool.name,
-        description: input.tool.description,
-        input_schema: input.tool.input_schema,
+    thinking: minThinking(model),
+    output_config: {
+      format: {
+        type: "json_schema",
+        schema: input.tool.input_schema,
       },
-    ],
-    // Force the model to call our tool — no free-form text response.
-    tool_choice: { type: "tool", name: input.tool.name },
-  });
+    },
+  } as Anthropic.MessageCreateParamsNonStreaming);
 
   let toolInput: unknown = undefined;
   let rawText: string | null = null;
   for (const block of resp.content) {
-    if (block.type === "tool_use" && block.name === input.tool.name) {
-      toolInput = block.input;
+    if (block.type === "text") {
+      rawText = block.text;
+      // On truncation (stop_reason "max_tokens") the JSON is incomplete and
+      // parsing throws; leaving `input` undefined lets callers surface their
+      // existing "incompleto" error instead of crashing.
+      try {
+        toolInput = JSON.parse(block.text);
+      } catch {
+        /* keep undefined */
+      }
       break;
     }
-    if (block.type === "text") rawText = block.text;
   }
 
   return {
@@ -300,6 +323,7 @@ export function streamClinicalCall(input: ClinicalCallInput) {
       max_tokens: input.maxTokens ?? 2500,
       system,
       messages: input.userMessages,
-    });
+      thinking: minThinking(model),
+    } as Anthropic.MessageStreamParams);
   })();
 }

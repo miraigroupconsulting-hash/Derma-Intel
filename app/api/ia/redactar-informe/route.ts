@@ -22,8 +22,8 @@ import { runClinicalCall } from "@/lib/claude";
 import { anonymizeText } from "@/lib/anonimizar";
 import type { Database } from "@/types/database";
 
-const SONNET_INPUT_USD_PER_MTOK = 3.0;
-const SONNET_OUTPUT_USD_PER_MTOK = 15.0;
+const SONNET_INPUT_USD_PER_MTOK = 2.0;
+const SONNET_OUTPUT_USD_PER_MTOK = 10.0;
 const costUsd = (inT: number, outT: number) =>
   (inT * SONNET_INPUT_USD_PER_MTOK) / 1_000_000 +
   (outT * SONNET_OUTPUT_USD_PER_MTOK) / 1_000_000;

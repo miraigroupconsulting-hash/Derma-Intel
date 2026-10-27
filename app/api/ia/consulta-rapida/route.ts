@@ -37,8 +37,8 @@ import type { Database } from "@/types/database";
 // mantener la latencia real bien por debajo de este techo.
 export const maxDuration = 60;
 
-const SONNET_INPUT_USD_PER_MTOK = 3.0;
-const SONNET_OUTPUT_USD_PER_MTOK = 15.0;
+const SONNET_INPUT_USD_PER_MTOK = 2.0;
+const SONNET_OUTPUT_USD_PER_MTOK = 10.0;
 const costUsd = (inT: number, outT: number) =>
   (inT * SONNET_INPUT_USD_PER_MTOK) / 1_000_000 +
   (outT * SONNET_OUTPUT_USD_PER_MTOK) / 1_000_000;
@@ -167,10 +167,10 @@ export async function POST(req: Request) {
   try {
     const response = await runStructuredClinicalCall({
       mode: "CASO_CLINICO",
-      // Con la brevedad pedida el output natural ronda ~1500-1800 tok.
-      // 2200 da margen para que el tool call cierre sin truncar, y la
-      // latencia queda ~35-45s (cómoda bajo el techo de 60s).
-      maxTokens: 2200,
+      // Output estructurado ~1500-1800 tok; el tokenizer de los modelos 5.x
+      // cuenta ~30% más, así que 3000 da margen para cerrar el JSON sin
+      // truncar. Latencia ~35-45s (cómoda bajo el techo de 60s).
+      maxTokens: 3000,
       systemPromptOverride: SYSTEM_PROMPT,
       tool: {
         name: "emitir_analisis",

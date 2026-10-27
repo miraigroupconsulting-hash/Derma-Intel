@@ -12,8 +12,8 @@ import {
 // Pricing (USD per million tokens). Update when Anthropic moves prices.
 // claude-haiku-4-5 list price as of the build of this file.
 // =====================================================================
-const HAIKU_INPUT_USD_PER_MTOK = 1.0;
-const HAIKU_OUTPUT_USD_PER_MTOK = 5.0;
+const HAIKU_INPUT_USD_PER_MTOK = 0.1;
+const HAIKU_OUTPUT_USD_PER_MTOK = 0.5;
 
 function estimateCostUsd(inputTokens: number, outputTokens: number): number {
   return (
